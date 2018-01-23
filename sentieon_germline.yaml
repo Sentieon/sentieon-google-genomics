@@ -1,0 +1,58 @@
+name: Sentieon_dnaseq
+description: Run a Sentieon dnaseq pipeline on the Google Cloud
+
+inputParameters:
+# Required parameters
+# FQ1 or BAM is required
+- name: FQ1
+  defaultValue: None
+  description: Fastq for a single sample (comma-separated)
+- name: FQ2
+  defaultValue: None
+  description: Fastq pairs for a single sample (comma-separated)
+- name: BAM
+  defaultValue: None
+  description: Bam files for a single sample (comma-separated)
+- name: OUTPUT_BUCKET
+  description: The output Google Cloud Storage directory
+- name: REF
+  description: The refence genome (and assoicated indicies)
+
+# Optional parameters
+- name: READGROUP
+  description: Readgroup information to add during alignment
+  defaultValue: "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA"
+- name: DEDUP
+  description: Duplicate removal to run (nodup, markdup, or rmdup)
+  defaultValue: rmdup
+- name: BQSR_SITES
+  description: Known sites for BQSR (comma-separated)
+  defaultValue: None
+- name: REALIGN_SITES
+  description: Known sites for indel realignment (comma-separated)
+  defaultValue: None
+- name: DBSNP
+  description: A dbSNP file to use during variant calling
+  defaultValue: None
+- name: INTERVAL
+  description: A string of interval(s) to use during variant calling
+  defaultValue: None
+- name: INTERVAL_FILE
+  description: An interval file
+  defaultValue: None
+- name: NO_METRICS
+  description: Set to not run metrics collection
+  defaultValue: None
+- name: NO_BAM_OUTPUT
+  description: Set to not output a preprocessed BAM file
+  defaultValue: None
+- name: NO_HAPLOTYPER
+  description: Set to not output a VCF
+  defaultValue: None
+- name: GVCF_OUTPUT
+  description: Set to output a GVCF instead of a VCF
+  defaultValue: None
+- name: STREAM_INPUT
+  description: Stream fastq input directly from storage
+  defaultValue: None
+

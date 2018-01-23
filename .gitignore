@@ -1,0 +1,3 @@
+build_docker.sh
+test_pipeline.sh
+.*.swp
