@@ -59,7 +59,7 @@ additional_input_params = {
         "MIN_RAM_GB": 56,
         "PIPELINE": "DNA",
         "PROJECT_ID": None,
-        "DOCKER_IMAGE": "donfreed12/bioinformatic-tools:201711",
+        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.01",
         "PREEMPTIBLE_TRIES": 0,
         "N_TRIES": 1
 }
