@@ -14,6 +14,7 @@ import sys
 import pprint
 import copy
 import time
+import ssl
 
 from apiclient.discovery import build
 import google.auth
@@ -166,7 +167,11 @@ def main(vargs=None):
         if operation:
             while not operation["done"]:
                 time.sleep(polling_interval)
-                operation = service.operations().get(name=operation['name']).execute()
+                try:
+                    operation = service.operations().get(name=operation['name']).execute()
+                except ssl.SSLError:
+                    print("Network error while polling running operation.")
+                    sys.exit(1)
             if "error" in operation:
                 pprint.pprint(operation, indent=2)
                 zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
@@ -206,7 +211,11 @@ def main(vargs=None):
     if operation:
         while not operation["done"]:
             time.sleep(polling_interval)
-            operation = service.operations().get(name=operation["name"]).execute()
+            try:
+                operation = service.operations().get(name=operation["name"]).execute()
+            except ssl.SSLError:
+                print("Network error while waiting for the final operation to finish")
+                sys.exit(1)
         if "error" in operation:
             zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
             instance = operation["metadata"]["runtimeMetadata"]["computeEngine"]["instanceName"]
