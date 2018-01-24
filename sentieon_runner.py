@@ -80,7 +80,7 @@ def check_inputs_exist(job_vars, credentials):
 def main(vargs=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("pipeline_config", help="The json configuration file")
-    parser.add_argument("--check_inputs_exist", action="store_true", help="Check that the input files exist before running the pipeline")
+    parser.add_argument("--no_check_inputs_exist", action="store_true", help="Do not check that the input files exist before running the pipeline")
     parser.add_argument("--polling_interval", type=float, default=30, help="Seconds between polling the running operation")
     args = parser.parse_args()
     polling_interval = args.polling_interval
@@ -89,7 +89,8 @@ def main(vargs=None):
     job_vars = json.load(open(default_json))
     job_vars.update(json.load(open(args.pipeline_config)))
     preemptible_tries = int(job_vars["PREEMPTIBLE_TRIES"])
-    non_preemptible_tries = int(job_vars["N_TRIES"])
+    if job_vars["NONPREEMPTIBLE_TRY"]:
+        non_preemptible_tries = 1
     preemptible = True if preemptible_tries > 0 else False
     credentials, project_id = google.auth.default()
 
@@ -111,7 +112,7 @@ def main(vargs=None):
             sys.exit("Error: Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
         if job_vars["NO_HAPLOTYPER"] and job_vars["NO_METRICS"] and job_vars["NO_BAM_OUTPUT"]:
             sys.exit("Error: No output files requested")
-        if args.check_inputs_exist:
+        if not args.no_check_inputs_exist:
             check_inputs_exist(job_vars, credentials)
 
     # Construct the pipeline arguments
@@ -160,7 +161,7 @@ def main(vargs=None):
     operation = None
     counter = 0
     project = job_vars["PROJECT_ID"]
-    # Do not poll the last operation
+    
     while non_preemptible_tries > 0 or preemptible_tries > 0:
         if operation:
             while not operation["done"]:

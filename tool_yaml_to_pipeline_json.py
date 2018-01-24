@@ -61,7 +61,7 @@ additional_input_params = {
         "PROJECT_ID": None,
         "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.01",
         "PREEMPTIBLE_TRIES": 0,
-        "N_TRIES": 1
+        "NONPREEMPTIBLE_TRY": true
 }
 
 out_yaml = copy.deepcopy(germline)

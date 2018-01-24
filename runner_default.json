@@ -3,7 +3,7 @@
   "MIN_RAM_GB": 56, 
   "NO_BAM_OUTPUT": null, 
   "PREEMPTIBLE_TRIES": 0, 
-  "N_TRIES": 1, 
+  "NONPREEMPTIBLE_TRY": true, 
   "PIPELINE": "DNA", 
   "OUTPUT_BUCKET": null, 
   "NO_HAPLOTYPER": null, 
