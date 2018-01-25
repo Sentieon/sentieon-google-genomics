@@ -312,7 +312,8 @@ fi
 # ******************************************
 
 if [[ "$DEDUP" == "nodup" ]]; then
-    dedup_bam=$local_bams_str
+    dedup_bam_str=$local_bams_str
+    dedup_bams=(${local_bams[@]})
 else
     # LocusCollector
     cmd="$release_dir/bin/sentieon driver $local_bams_str -t $nt -r $ref --algo LocusCollector $work/score.txt"
@@ -345,38 +346,21 @@ else
             rm ${bam}.bai &
         fi
     done
-fi
-
-upload_metrics
-
-# ******************************************
-# 4. Indel realigner
-# ******************************************
-if [[ -n "$REALIGN_SITES" ]]; then
-    realigned_bam=$work/realigned.bam
-    cmd="$release_dir/bin/sentieon driver -r '$ref' -t $nt -i $dedup_bam --algo Realigner $interval_list $realign_sites $realigned_bam"
-    if [[ -n $metrics_cmd1 ]]; then
-        cmd+=" $metrics_cmd1"
-        metrics_cmd1=
-    fi
-    run "$cmd" "Indel realigner."
-    rm $dedup_bam ${dedup_bam}.bai &
-    for site_file in ${local_realign_sites[@]}; do
-        rm site_file &
-    done
-else
-    realigned_bam=$dedup_bam
+    dedup_bam_str=" -i $dedup_bam "
+    dedup_bams=($dedup_bam)
 fi
 
 if [[ -z $NO_BAM_OUTPUT ]]; then
-    gsutil cp $realigned_bam ${realigned_bam}.bai $out_bam &
-    upload_realigned_pid=$!
+    for bam in ${dedup_bams[@]}; do
+        gsutil cp $bam ${bam}.bai $out_bam
+        upload_deduped_pid=$!
+    done
 fi
 
 upload_metrics
 
 # ******************************************
-# 5. Base recalibration
+# 4. Base recalibration
 # ******************************************
 bqsr_table=''
 bqsr_cmd2=
@@ -386,7 +370,7 @@ plot=$work/bqsr_report.pdf
 if [[ -n "$bqsr_sites" ]]; then
     bqsr_table=$work/recal_data.table
     bqsr_post=$work/recal_data.table.post
-    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' -i '$realigned_bam' --algo QualCal $bqsr_sites $bqsr_table"
+    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str --algo QualCal $bqsr_sites $bqsr_table"
     if [[ -n $metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1"
     fi
@@ -409,17 +393,17 @@ upload_metrics
 # ******************************************
 
 # ******************************************
-# 6b. HC Variant caller
+# 5b. HC Variant caller
 # ******************************************
 outgvcf=$work/hc.g.vcf.gz
 outvcf=$work/hc.vcf.gz
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' -i '$realigned_bam' ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' -i '$realigned_bam' ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} ${outvcf}"
         outfile=$outvcf
     fi
 
@@ -438,7 +422,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
 fi
 
 if [[ -n $metrics_cmd1 ]]; then
-    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' -i '$realigned_bam' ${bqsr_table:+-q $bqsr_table}"
+    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table}"
     cmd+=" $metrics_cmd1"
     run "$cmd" "Metrics collection"
 fi
@@ -446,7 +430,7 @@ fi
 upload_metrics
 
 if [[ -n $bqsr_cmd2 ]]; then
-    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' -i '$realigned_bam' -q $bqsr_table $bqsr_cmd2"
+    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str -q $bqsr_table $bqsr_cmd2"
     bqsr_cmd2=
     run "$cmd" "BQSR Post"
 fi
@@ -467,8 +451,8 @@ fi
 if [[ -n $upload_dedup_pid ]]; then
     wait $upload_dedup_pid
 fi
-if [[ -n $upload_realigned_pid ]]; then
-    wait $upload_realigned_pid
+if [[ -n $upload_deduped_pid ]]; then
+    wait $upload_deduped_pid
 fi
 if [[ -n $upload_bqsr_pid ]]; then
     wait $upload_bqsr_pid

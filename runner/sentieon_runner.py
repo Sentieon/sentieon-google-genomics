@@ -173,7 +173,12 @@ def main(vargs=None):
                     sys.exit(1)
             if "error" in operation:
                 pprint.pprint(operation, indent=2)
-                zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+                try:
+                    zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+                except KeyError:
+                    print("Genomics operation failed before running:")
+                    pprint.pprint(operation["error"], indent=2)
+                    sys.exit(2)
                 instance = operation["metadata"]["runtimeMetadata"]["computeEngine"]["instanceName"]
                 url = target_url_base.format(**locals())
                 compute_ops = compute_service.zoneOperations().list(project=project, zone=zone, filter="(targetLink eq {url}) (operationType eq compute.instances.preempted)".format(**locals())).execute()
@@ -216,7 +221,12 @@ def main(vargs=None):
                 print("Network error while waiting for the final operation to finish")
                 sys.exit(1)
         if "error" in operation:
-            zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+            try:
+                zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+            except KeyError:
+                print("Genomics operation failed before running:")
+                pprint.pprint(operation["error"], indent=2)
+                sys.exit(2)
             instance = operation["metadata"]["runtimeMetadata"]["computeEngine"]["instanceName"]
             url = target_url_base.format(**locals())
             compute_ops = compute_service.zoneOperations().list(project=project, zone=zone, filter="(targetLink eq {url}) (operationType eq compute.instances.preempted)".format(**locals())).execute()
