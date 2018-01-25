@@ -104,7 +104,7 @@ nt=$(nproc)
 # Set "None" variables to an empty string
 # collected from the YAML file
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF SENTIEON_TOKEN \
-    GOOGLE_TOKEN READGROUP DEDUP BQSR_SITES REALIGN_SITES DBSNP INTERVAL \
+    GOOGLE_TOKEN READGROUP DEDUP BQSR_SITES DBSNP INTERVAL \
     INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
     STREAM_INPUT)
 for var in "${environmental_variables[@]}"; do
@@ -114,7 +114,7 @@ for var in "${environmental_variables[@]}"; do
 done
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF SENTIEON_TOKEN GOOGLE_TOKEN \
-    READGROUP DEDUP BQSR_SITES REALIGN_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS \
+    READGROUP DEDUP BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS \
     NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT
 
 # Some basic error handling #
@@ -142,10 +142,9 @@ metrics_dir=$scratch/metrics
 ref_dir=$scratch/ref
 input_dir=$scratch/inputs
 bqsr_dir=$scratch/bqsr
-realign_dir=$scratch/realign
 dbsnp_dir=$scratch/dbsnp
 license_dir=$scratch/license
-mkdir -p $work $metrics_dir $ref_dir $input_dir $bqsr_dir $realign_dir \
+mkdir -p $work $metrics_dir $ref_dir $input_dir $bqsr_dir \
     $dbsnp_dir $license_dir
 
 out_metrics=$OUTPUT_BUCKET/metrics/
@@ -192,7 +191,7 @@ fi
 
 if [[ -n "$INTERVAL" ]]; then
     interval=" --interval $INTERVAL "
-    interval_list=" --interval_list $INTERVAL "
+    interval_list=""
 elif [[ -n "$INTERVAL_FILE" ]]; then
     local_interval_file=$input_dir/$(basename $INTERVAL_FILE)
     transfer $INTERVAL_FILE $local_interval_file
@@ -229,10 +228,7 @@ transfer_all_sites $bqsr_dir "${gs_bqsr_sites[@]}"
 local_bqsr_sites="${local_sites[@]}"
 bqsr_sites="$local_str"
 
-gs_realign_sites=($(echo $REALIGN_SITES | tr ',' ' '))
-transfer_all_sites $realign_dir "${gs_realign_sites[@]}"
-local_realign_sites="${local_sites[@]}"
-realign_sites="$local_str"
+REALIGN_SITES=
 
 if [[ -n "$DBSNP" ]]; then
     transfer_all_sites $dbsnp_dir $DBSNP
@@ -316,7 +312,7 @@ fi
 # ******************************************
 
 if [[ "$DEDUP" == "nodup" ]]; then
-    dedup_bam=$local_bam_str
+    dedup_bam=$local_bams_str
 else
     # LocusCollector
     cmd="$release_dir/bin/sentieon driver $local_bams_str -t $nt -r $ref --algo LocusCollector $work/score.txt"
@@ -358,7 +354,7 @@ upload_metrics
 # ******************************************
 if [[ -n "$REALIGN_SITES" ]]; then
     realigned_bam=$work/realigned.bam
-    cmd="$release_dir/bin/sentieon driver -r '$ref' -t $nt -i '$dedup_bam' --algo Realigner $interval_list $realign_sites $realigned_bam"
+    cmd="$release_dir/bin/sentieon driver -r '$ref' -t $nt -i $dedup_bam --algo Realigner $interval_list $realign_sites $realigned_bam"
     if [[ -n $metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1"
         metrics_cmd1=

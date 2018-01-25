@@ -45,7 +45,6 @@ def check_inputs_exist(job_vars, credentials):
     # The DBSNP, BQSR and Realign sites files
     sites_files = []
     sites_files += job_vars["BQSR_SITES"].split(',') if job_vars["BQSR_SITES"] else []
-    sites_files += job_vars["REALIGN_SITES"].split(',') if job_vars["REALIGN_SITES"] else []
     sites_files += [job_vars["DBSNP"]] if job_vars["DBSNP"] else []
     for sites_file in sites_files:
         if not cloud_storage_exists(client, sites_file):

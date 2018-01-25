@@ -28,9 +28,6 @@ inputParameters:
 - name: BQSR_SITES
   description: Known sites for BQSR (comma-separated)
   defaultValue: None
-- name: REALIGN_SITES
-  description: Known sites for indel realignment (comma-separated)
-  defaultValue: None
 - name: DBSNP
   description: A dbSNP file to use during variant calling
   defaultValue: None

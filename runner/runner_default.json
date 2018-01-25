@@ -12,7 +12,6 @@
   "REF": null, 
   "BQSR_SITES": null, 
   "INTERVAL_FILE": null, 
-  "REALIGN_SITES": null, 
   "PROJECT_ID": null, 
   "DISK_SIZE": 300, 
   "MIN_CPU": 64, 
