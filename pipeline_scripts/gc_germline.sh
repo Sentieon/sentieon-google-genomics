@@ -128,7 +128,7 @@ if [[ -n "$INTERVAL" && -n "$INTERVAL_FILE" ]]; then
     exit 1
 fi
 
-if [[ -n "$NO_BAM_OUTPUT" && -n "$NO_HAPLOTYPER" ]]; then
+if [[ -n "$NO_BAM_OUTPUT" && -n "$NO_HAPLOTYPER" && -n "$NO_METRICS" ]]; then
     echo "Nothing to do"
     exit 1
 fi
