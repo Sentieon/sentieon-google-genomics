@@ -171,7 +171,7 @@ if [[ -n "$BAM" ]]; then
     fi
     local_bams=()
     for bam in ${bams[@]}; do
-        local_bams=$input_dir/$(basename $bam)
+        local_bam=$input_dir/$(basename $bam)
         transfer $bam $local_bam
         if $(test -e ${bam}.bai) || $(gsutil -q stat ${bam}.bai); then
             bai=${bam}.bai
@@ -183,7 +183,7 @@ if [[ -n "$BAM" ]]; then
         fi
         local_bai=$input_dir/$(basename $bai)
         transfer $bai $local_bai
-        local_bams+=($bam)
+        local_bams+=($local_bam)
     done
 else
     local_bams=()

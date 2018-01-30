@@ -6,7 +6,6 @@
   "BQSR_SITES": "gs://sentieon-test/pipeline_test/reference/Mills_and_1000G_gold_standard.indels.b37.vcf.gz,gs://sentieon-test/pipeline_test/reference/1000G_phase1.indels.b37.vcf.gz,gs://sentieon-test/pipeline_test/reference/dbsnp_138.b37.vcf.gz",
   "DBSNP": "gs://sentieon-test/pipeline_test/reference/dbsnp_138.b37.vcf.gz",
   "PREEMPTIBLE_TRIES": "2",
-  "N_TRIES": "1",
   "STREAM_INPUT": "True",
   "ZONES": "us-central1-a,us-central1-b,us-central1-c,us-central1-f",
   "PROJECT_ID": "YOUR_PROJECT_HERE"
