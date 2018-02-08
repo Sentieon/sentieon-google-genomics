@@ -294,7 +294,7 @@ done
 # ******************************************
 metrics_cmd1=
 metrics_cmd2=
-if [[ -z "$no_metrics" ]]; then
+if [[ -z "$NO_METRICS" ]]; then
     mq=$metrics_dir/MeanQualityByCycle_metrics.txt
     is=$metrics_dir/InsertSize_metrics.txt
     qd=$metrics_dir/QualDistribution_metrics.txt
@@ -331,7 +331,7 @@ else
         cmd="$release_dir/bin/sentieon driver $local_bams_str -t $nt --algo Dedup --score_info $work/score.txt --metrics $metrics_dir/dedup_metrics.txt --rmdup $dedup_bam"
     fi
     run "$cmd" $DEDUP
-    if [[ -z "$no_metrics" ]]; then
+    if [[ -z "$NO_METRICS" ]]; then
         (gsutil cp $metrics_dir/dedup_metrics.txt $out_metrics &&
             rm $metrics_dir/dedup_metrics.txt) &
         upload_dedup_pid=$!
@@ -375,7 +375,7 @@ if [[ -n "$bqsr_sites" ]]; then
         cmd+=" $metrics_cmd1"
     fi
     run "$cmd" "BQSR"
-    if [[ -z "$no_metrics" ]]; then
+    if [[ -z "$NO_METRICS" ]]; then
         bqsr_cmd2="--algo QualCal $bqsr_sites $bqsr_post"
         bqsr_cmd3="$release_dir/bin/sentieon driver --algo QualCal --plot --before $bqsr_table --after $bqsr_post $csv"
         bqsr_cmd4="$release_dir/bin/sentieon plot bqsr -o $plot $csv"
