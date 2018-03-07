@@ -52,4 +52,6 @@ inputParameters:
 - name: STREAM_INPUT
   description: Stream fastq input directly from storage
   defaultValue: None
-
+- name: PIPELINE
+  description: Run DNAseq or DNAscope
+  defaultValue: DNA

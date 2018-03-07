@@ -95,15 +95,18 @@ def main(vargs=None):
     credentials, project_id = google.auth.default()
 
     # Grab the yaml for the workflow
-    pipeline_yaml = germline_yaml if job_vars["PIPELINE"] == "DNA" else tn_yaml
-    pipeline_dict = yaml.load(open(pipeline_yaml))
+    pipeline_yaml = germline_yaml if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" else tn_yaml
+    try:
+        pipeline_dict = yaml.load(open(pipeline_yaml))
+    except IOError:
+        sys.exit("Error. No yaml \"{}\" found.".format(pipeline_yaml))
     if job_vars["OUTPUT_BUCKET"].endswith('/'):
         job_vars["OUTPUT_BUCKET"] = job_vars["OUTPUT_BUCKET"][:-1]
 
     # Some basic error checking to fail early
     if not job_vars["PROJECT_ID"]:
         sys.exit("Error: Please supply a PROJECT_ID")
-    if job_vars["PIPELINE"] == "DNA":
+    if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope":
         if job_vars["FQ1"] and job_vars["BAM"]:
             sys.exit("Error: Please supply either 'FQ1' or 'BAM' (not both)")
         if not job_vars["FQ1"] and not job_vars["BAM"]:
@@ -114,6 +117,8 @@ def main(vargs=None):
             sys.exit("Error: No output files requested")
         if not args.no_check_inputs_exist:
             check_inputs_exist(job_vars, credentials)
+    else:
+        sys.exit("Error: Only DNA and DNAscope are currently supported")
 
     # Construct the pipeline arguments
     args_dict = {}
@@ -152,7 +157,7 @@ def main(vargs=None):
     pipeline_dict["projectId"] = job_vars["PROJECT_ID"]
     pipeline_dict["docker"] = {
             "imageName": job_vars["DOCKER_IMAGE"],
-            "cmd": "bash /opt/sentieon/" + "gc_germline.sh" if job_vars["PIPELINE"] == "DNA" else "gc_tn.sh"
+            "cmd": "bash /opt/sentieon/" + "gc_germline.sh" if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" else "gc_tn.sh"
     }
 
     # Run the pipeline #

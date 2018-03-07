@@ -23,5 +23,5 @@
   "FQ2": null, 
   "DBSNP": null, 
   "FQ1": null, 
-  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.01-2"
+  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.01-3"
 }

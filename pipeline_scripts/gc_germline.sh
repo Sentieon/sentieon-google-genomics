@@ -106,7 +106,7 @@ nt=$(nproc)
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF SENTIEON_TOKEN \
     GOOGLE_TOKEN READGROUP DEDUP BQSR_SITES DBSNP INTERVAL \
     INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
-    STREAM_INPUT)
+    STREAM_INPUT PIPELINE)
 for var in "${environmental_variables[@]}"; do
     if [[ $(eval echo \$$var) == "None" ]]; then
         eval "${var}=''"
@@ -392,18 +392,26 @@ upload_metrics
 # Variant Calling
 # ******************************************
 
-# ******************************************
-# 5b. HC Variant caller
-# ******************************************
 outgvcf=$work/hc.g.vcf.gz
 outvcf=$work/hc.vcf.gz
 
+algo=Haplotyper
+extra_vcf_args=""
+extra_gvcf_args=""
+if [[ $PIPELINE == "DNAscope" ]]; then
+    algo="DNAscope"
+    extra_vcf_args="--var_type snp,indel,bnd"
+    outvcf=$work/dnascope.vcf.gz
+    outgvcf=$work/dnascope.g.vcf.gz
+    tmpvcf=$work/tmp.vcf.gz
+fi
+
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_gvcf_args ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo Haplotyper ${dbsnp:+-d $dbsnp} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d $dbsnp} ${outvcf}"
         outfile=$outvcf
     fi
 
@@ -417,6 +425,12 @@ if [[ -z $NO_HAPLOTYPER ]]; then
     fi
 
     run "$cmd" "Haplotyper variant calling"
+    if [[ $PIPELIINE == "DNAscope" ]]; then
+        mv $outvcf $tmpvcf
+        mv ${outvcf}.tbi ${tmpvcf}.tbi
+        cmd="$release_dir/bin/sentieon driver -t $nt -r '$ref' --algo SVSolver -v $tmpvcf $outvcf"
+        run "$cmd" "SVSolver"
+    fi
     gsutil cp $outfile ${outfile}.tbi $out_variants &
     upload_vcf_pid=$!
 fi
@@ -463,5 +477,4 @@ fi
 if [[ -n $upload_bqsr_metrics_pid ]]; then
     wait $upload_bqsr_metrics_pid
 fi
-
 exit 0
