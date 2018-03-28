@@ -6,7 +6,7 @@ import copy
 import os
 import json
 
-def add_to_yaml(a, b):
+def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
     '''
     If an object is in b but not a, add it to a.
 
@@ -16,6 +16,8 @@ def add_to_yaml(a, b):
         raise ValueError("Incomptable yaml entries found")
     if type(a) is dict:
         for k in b.keys():
+            if k in ignore_keys:
+                continue
             if k in a:
                 add_to_yaml(a[k], b[k])
             else:
@@ -35,19 +37,23 @@ def add_to_yaml(a, b):
         # item["name"] essentially acts as a key
         a_dict, b_dict = dict([(x["name"], x) for x in a]), dict([(x["name"], x) for x in b])
         for k, v in b_dict.items():
+            if k in ignore_keys:
+                continue
             if k in a_dict:
                 if v != a_dict[k]:
+                    print("'{}' does not equal '{}'".format(v, a_dict[k]))
                     raise ValueError("Paramters are unequal")
             else:
                 a.append(v)
     else:
         if a != b:
+            print("'{}' does not equal '{}'".format(a, b))
             raise ValueError("Values are unequal")
 
 germline = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_germline.yaml"))
 tn = None
 try:
-    tn = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_tn.yaml"))
+    tn = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_somatic.yaml"))
 except IOError:
     pass
 output = os.path.dirname(os.path.realpath(__file__)) + "/runner_default.json"
@@ -59,7 +65,7 @@ additional_input_params = {
         "MIN_RAM_GB": 56,
         "PIPELINE": "DNA",
         "PROJECT_ID": None,
-        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.01",
+        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.02",
         "PREEMPTIBLE_TRIES": 0,
         "NONPREEMPTIBLE_TRY": True
 }

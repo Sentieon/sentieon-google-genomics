@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 r"""
-Runs the Sentieon Genomics Tools workflows using Google Genomics Pipelines API
+Runs the Sentieon Genomics Tools workflows using Google Pipelines API
 """
 
 import yaml
@@ -21,7 +21,7 @@ import google.auth
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 germline_yaml = script_dir + "/sentieon_germline.yaml"
-tn_yaml = script_dir + "/sentieon_tn.yaml"
+somatic_yaml = script_dir + "/sentieon_somatic.yaml"
 default_json = script_dir + "/runner_default.json"
 target_url_base = "https://www.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
 
@@ -45,6 +45,7 @@ def check_inputs_exist(job_vars, credentials):
     # The DBSNP, BQSR and Realign sites files
     sites_files = []
     sites_files += job_vars["BQSR_SITES"].split(',') if job_vars["BQSR_SITES"] else []
+    sites_files += job_vars["REALIGN_SITES"].split(',') if job_vars["REALIGN_SITES"] else []
     sites_files += [job_vars["DBSNP"]] if job_vars["DBSNP"] else []
     for sites_file in sites_files:
         if not cloud_storage_exists(client, sites_file):
@@ -56,6 +57,19 @@ def check_inputs_exist(job_vars, credentials):
             if not cloud_storage_exists(client, sites_file + ".idx"):
                 sys.exit("Error: Could not find index for file {}".format(sites_file))
 
+    # The data input files
+    gs_split_files = (job_vars["FQ1"], job_vars["TUMOR_FQ1"], job_vars["FQ2"], job_vars["TUMOR_FQ2"], job_vars["BAM"], job_vars["TUMOR_BAM"])
+    gs_files = ()
+    for split_file in gs_split_files:
+        if not split_file:
+            continue
+        for input_file in split_file.split(','):
+            if not cloud_storage_exists(client, input_file):
+                sys.exit("Error: Could not find the supplied file {}".format(input_file))
+    for input_file in gs_files:
+        if not cloud_storage_exists(client, input_file):
+            sys.exit("Error: Could not file the supplied file {}".format(input_file))
+
     # All reference files
     ref = job_vars["REF"]
     if not cloud_storage_exists(client, ref):
@@ -66,15 +80,18 @@ def check_inputs_exist(job_vars, credentials):
         not cloud_storage_exists(client, ref[:-2] + "dict")):
         sys.exit("Error: Reference dict index not found")
     # FQ specific
-    if job_vars["FQ1"]:
+    if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:
         for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
             if not cloud_storage_exists(client, ref + suffix):
                 sys.exit("Error: Reference BWA index {} not found".format(suffix))
     # BAM specific
-    else:
-        if (not cloud_storage_exists(client, job_vars["BAM"] + ".bai") and
-            not cloud_storage_exists(client, job_vars["BAM"][:-3] + "bai")):
-            sys.exit("Error: BAM supplied but BAI not found")
+    bam_vars = ("BAM", "TUMOR_BAM")
+    for bam_type in bam_vars:
+        if job_vars[bam_type]:
+            for bam in job_vars[bam_type].split(','):
+                if (not cloud_storage_exists(client, bam + ".bai") and
+                    not cloud_storage_exists(client, bam + "bai")):
+                    sys.exit("Error: BAM supplied but BAI not found")
     
 
 def main(vargs=None):
@@ -95,30 +112,45 @@ def main(vargs=None):
     credentials, project_id = google.auth.default()
 
     # Grab the yaml for the workflow
-    pipeline_yaml = germline_yaml if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" else tn_yaml
+    pipeline_yaml = germline_yaml if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq" else somatic_yaml
     try:
         pipeline_dict = yaml.load(open(pipeline_yaml))
     except IOError:
         sys.exit("Error. No yaml \"{}\" found.".format(pipeline_yaml))
-    if job_vars["OUTPUT_BUCKET"].endswith('/'):
+
+    # Try not to create nearly empty directories
+    while job_vars["OUTPUT_BUCKET"].endswith('/'):
         job_vars["OUTPUT_BUCKET"] = job_vars["OUTPUT_BUCKET"][:-1]
 
     # Some basic error checking to fail early
     if not job_vars["PROJECT_ID"]:
         sys.exit("Error: Please supply a PROJECT_ID")
-    if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope":
-        if job_vars["FQ1"] and job_vars["BAM"]:
-            sys.exit("Error: Please supply either 'FQ1' or 'BAM' (not both)")
+
+    # Shared errors
+    if job_vars["FQ1"] and job_vars["BAM"]:
+        sys.exit("Error: Please supply either 'FQ1' or 'BAM' (not both)")
+    if job_vars["INTERVAL"] and job_vars["INTERVAL_FILE"]:
+        sys.exit("Error: Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
+
+    # Pipeline specific errors
+    if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq":
         if not job_vars["FQ1"] and not job_vars["BAM"]:
             sys.exit("Error: Please supply either 'FQ1' or 'BAM'")
-        if job_vars["INTERVAL"] and job_vars["INTERVAL_FILE"]:
-            sys.exit("Error: Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
         if job_vars["NO_HAPLOTYPER"] and job_vars["NO_METRICS"] and job_vars["NO_BAM_OUTPUT"]:
             sys.exit("Error: No output files requested")
-        if not args.no_check_inputs_exist:
-            check_inputs_exist(job_vars, credentials)
+    elif job_vars["PIPELINE"] == "TN" or  job_vars["PIPELINE"] == "TNscope" or job_vars["PIPELINE"] == "TNseq":
+        if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
+            sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' (not both)")
+        if not job_vars["TUMOR_FQ1"] and not job_vars["TUMOR_BAM"]:
+            sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM'")
+        if job_vars["RUN_TNSNV"] and not job_vars["REALIGN_SITES"]:
+            sys.exit("Error: TNsnv requires indel realignment. Please supply 'REALIGN_SITES'")
+        if job_vars["NO_BAM_OUTPUT"] and job_vars["NO_VCF"] and job_vars["NO_METRICS"]:
+            sys.exit("Error: No output files requested")
     else:
-        sys.exit("Error: Only DNA and DNAscope are currently supported")
+        sys.exit("Error: DNAseq, DNAscope, TNseq, and TNscope are currently supported")
+    if not args.no_check_inputs_exist:
+        check_inputs_exist(job_vars, credentials)
 
     # Construct the pipeline arguments
     args_dict = {}
@@ -157,7 +189,7 @@ def main(vargs=None):
     pipeline_dict["projectId"] = job_vars["PROJECT_ID"]
     pipeline_dict["docker"] = {
             "imageName": job_vars["DOCKER_IMAGE"],
-            "cmd": "bash /opt/sentieon/" + "gc_germline.sh" if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" else "gc_tn.sh"
+            "cmd": "bash /opt/sentieon/gc_germline.sh" if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq" else "bash /opt/sentieon/gc_somatic.sh"
     }
 
     # Run the pipeline #
