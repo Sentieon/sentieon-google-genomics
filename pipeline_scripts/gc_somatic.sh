@@ -290,7 +290,7 @@ if [[ -z "$NO_VCF" ]]; then
     extra_calling_args=""
     if [[ "$PIPELINE" == "TNscope" ]]; then
         algo="TNscope"
-        vcf=$work/dnascope.vcf.gz
+        vcf=$work/tnscope.vcf.gz
     elif [[ -n "$RUN_TNSNV" ]]; then
         algo="TNsnv"
         vcf=$work/tnsnv.vcf.gz

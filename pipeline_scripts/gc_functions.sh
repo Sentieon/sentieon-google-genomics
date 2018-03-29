@@ -83,10 +83,10 @@ upload_metrics()
     fun_var_cmd1=$1; shift
     fun_var_cmd2=$1; shift
     fun_pid=$1; shift
-    fun_metrics_files="$@"
+    fun_metrics_files=("$@")
     eval "fun_metrics_cmd1=\$$fun_var_cmd1"
     eval "fun_metrics_cmd2=\$$fun_var_cmd2"
-    if [[ -n $fun_metrics_cmd2 && -z $fun_metrics_cmd1 && -f ${fun_metrics_files[0]} ]]; then
+    if [[ -n "$fun_metrics_cmd2" && -z "$fun_metrics_cmd1" && -f "${fun_metrics_files[0]}" ]]; then
         (run "$fun_metrics_cmd2" "Plotting metrics results." &&
             gsutil cp ${fun_metrics_files[@]} $out_metrics &&
             rm ${fun_metrics_files[@]}) &
