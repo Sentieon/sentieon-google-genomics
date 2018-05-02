@@ -1,5 +1,5 @@
-FROM sentieon/sentieon:201711.02 as builder
-ARG version=201711.02
+FROM sentieon/sentieon:201711.03 as builder
+ARG version=201711.03
 
 RUN apt-get update && \
     apt-get install -y \
@@ -28,16 +28,15 @@ RUN apt-get update && \
     ./configure && \
     make install
 
-FROM sentieon/sentieon:201711.02
-ARG version=201711.02
+FROM sentieon/sentieon:201711.03
+ARG version=201711.03
 
 COPY --from=builder /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 COPY --from=builder /usr/local/lib/python2.7/site-packages/crcmod/ /usr/local/lib/python2.7/site-packages/crcmod/
 COPY --from=builder /usr/local/bin/samtools /usr/local/bin
 
 RUN apt-get update && apt-get install -y \
-        bc \
-        libjemalloc-dev && \
+        bc && \
     pip install --upgrade requests && \
     ln -s ../lib/google-cloud-sdk/bin/gsutil /usr/bin/gsutil
 

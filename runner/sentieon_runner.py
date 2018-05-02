@@ -72,12 +72,13 @@ def check_inputs_exist(job_vars, credentials):
 
     # All reference files
     ref = job_vars["REF"]
+    ref_base = ref[:-3] if ref.endswith(".fa") else ref[:-6]
     if not cloud_storage_exists(client, ref):
         sys.exit("Error: Reference file not found")
     if not cloud_storage_exists(client, ref + ".fai"):
         sys.exit("Error: Reference fai index not found")
     if (not cloud_storage_exists(client, ref + ".dict") and
-        not cloud_storage_exists(client, ref[:-2] + "dict")):
+        not cloud_storage_exists(client, ref_base + ".dict")):
         sys.exit("Error: Reference dict index not found")
     # FQ specific
     if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:

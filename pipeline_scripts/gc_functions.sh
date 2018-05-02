@@ -187,11 +187,13 @@ download_reference()
         transfer ${REF}.dict ${ref}.dict
     elif $(test -e ${REF%%.fa}.dict) || $(gsutil -q stat ${REF%%.fa}.dict); then
         transfer ${REF%%.fa}.dict ${ref%%.fa}.dict
+    elif $(test -e ${REF%%.fasta}.dict) || $(gsutil -q stat ${REF%%.fasta}.dict); then
+        transfer ${REF%%.fasta}.dict ${ref%%.fasta}.dict
     else
         echo "Cannot find reference dictionary"
         exit 1
     fi
-    if [[ -n "$FQ1" ]]; then
+    if [[ -n "$FQ1" || -n "$TUMOR_FQ1" ]]; then
         transfer ${REF}.amb ${ref}.amb
         transfer ${REF}.ann ${ref}.ann
         transfer ${REF}.bwt ${ref}.bwt
@@ -207,18 +209,26 @@ bwa_mem_align()
     fun_fq2=$1; shift
     fun_rgs=$1; shift
     bam_dest=$1; shift
+    fun_output_ext=$1; shift
+    fun_bwa_xargs=$1; shift
+    fun_util_sort_xargs=$1; shift
     fun_bam_dest=()
 
     fun_fq1=($(echo $fun_fq1 | tr ',' ' '))
     fun_fq2=($(echo $fun_fq2 | tr ',' ' '))
     fun_rgs=($(echo $fun_rgs | tr ',' ' '))
 
+    if [[ -z "$bwt_max_mem" ]]; then
+        mem_kb=$(cat /proc/meminfo | grep "MemTotal" | awk '{print $2}')
+        export bwt_max_mem="$((mem_kb / 1024 / 1024 - 2))g"
+    fi
+
     for i in $(seq 1 ${#fun_fq1[@]}); do
         i=$((i - 1))
         fq1=${fun_fq1[$i]}
         fq2=${fun_fq2[$i]}
         readgroup=${fun_rgs[$i]}
-        bwa_cmd="$release_dir/bin/bwa mem -M -R \"${readgroup}\" -t $nt $ref "
+        bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -K 10000000 -M -R \"${readgroup}\" -t $nt $ref "
         if [[ -n "$STREAM_INPUT" ]]; then
             bwa_cmd="$bwa_cmd <(gsutil cp $fq1 -) "
             if [[ -n "$fq2" ]]; then
@@ -234,8 +244,8 @@ bwa_mem_align()
                 bwa_cmd="$bwa_cmd $local_fq2"
             fi
         fi
-        local_bam=$work/${fun_base}sorted_bam-${i}.bam
-        bwa_cmd="$bwa_cmd | $release_dir/bin/sentieon util sort -o $local_bam -t $nt --sam2bam -i -"
+        local_bam=$work/${fun_base}sorted_bam-${i}.${fun_output_ext}
+        bwa_cmd="$bwa_cmd | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
         run "$bwa_cmd" "BWA-mem and sorting"
         fun_bam_dest+=($local_bam)
     done
@@ -286,14 +296,16 @@ run_mark_duplicates() {
     fun_bam_str=$1; shift
     fun_bam_str_dest=$1; shift
     fun_bams_dest=$1; shift
+    fun_dedup_xargs=$1; shift
+    fun_output_ext=$1; shift
     fun_local_bams=("$@")
 
-    if [[ "$fun_dedup" == "nodup" || (-z $fun_bam_str || -z "${fun_local_bams[@]}") ]]; then
+    if [[ "$fun_dedup" == "nodup" || (-z "$fun_bam_str" || -z "${fun_local_bams[@]}") ]]; then
         eval "${fun_bam_str_dest}=\"$fun_bam_str\""
         eval "${fun_bams_dest}=(${fun_local_bams[@]})"
     else
         # LocusCollector
-        cmd="$release_dir/bin/sentieon driver $fun_bam_str -t $nt -r $ref --algo LocusCollector $work/${fun_base}score.txt"
+        cmd="$release_dir/bin/sentieon driver --traverse_param=200000/10000 $fun_bam_str -t $nt -r $ref --algo LocusCollector $work/${fun_base}score.txt"
         if [[ -n $(eval "echo \$$fun_metrics_cmd") ]]; then
             eval "cmd+=\" \$$fun_metrics_cmd \""
             eval "$fun_metrics_cmd=''"
@@ -301,12 +313,11 @@ run_mark_duplicates() {
         run "$cmd" "Locus collector"
 
         # Dedup
-        dedup_bam=$work/${fun_base}dedup.bam
-        if [ "$fun_dedup" = "markdup" ]; then
-            cmd="$release_dir/bin/sentieon driver $fun_bam_str -t $nt --algo Dedup --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
-        else
-            cmd="$release_dir/bin/sentieon driver $fun_bam_str -t $nt --algo Dedup --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt --rmdup $dedup_bam"
+        dedup_bam=$work/${fun_base}dedup.${fun_output_ext}
+        if [[ "$fun_dedup" != "markdup" ]]; then
+            fun_dedup_xargs+=" --rmdup "
         fi
+        cmd="$release_dir/bin/sentieon driver -r $ref --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
         run "$cmd" $fun_dedup
         for bam in ${local_bams[@]}; do
             if [[ -n $bam ]]; then
@@ -348,8 +359,8 @@ run_bqsr()
         fi
         run "$cmd" "BQSR"
         if [[ -z "$NO_METRICS" ]]; then
-            bqsr_cmd2="--algo QualCal $bqsr_sites $fun_bqsr_post"
-            bqsr_cmd3="$release_dir/bin/sentieon driver --algo QualCal --plot --before $fun_bqsr_table --after $fun_bqsr_post $csv"
+            fun_bqsr_cmd2="--algo QualCal $bqsr_sites $fun_bqsr_post"
+            fun_bqsr_cmd3="$release_dir/bin/sentieon driver --algo QualCal --plot --before $fun_bqsr_table --after $fun_bqsr_post $csv"
             fun_bqsr_cmd4="$release_dir/bin/sentieon plot bqsr -o $plot $csv"
         fi
     fi
@@ -361,4 +372,39 @@ run_bqsr()
     eval "$fun_plot=\"$plot\""
 }
 
+run_bqsr_post()
+{
+    fun_bam_str=$1; shift
+    fun_bqsr2=$1; shift
+    fun_bqsr3=$1; shift
+    fun_bqsr4=$1; shift
+    fun_table=$1; shift
+    fun_plot=$1; shift
+    fun_upload_pid=$1; shift
+
+    eval "fun_bqsr_cmd2=\$$fun_bqsr2"
+    eval "fun_bqsr_cmd3=\$$fun_bqsr3"
+    eval "fun_bqsr_cmd4=\$$fun_bqsr4"
+
+    if [[ -n "$fun_bqsr_cmd2" && -n "$fun_bam_str" && -f "$fun_table" ]]; then
+        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r $ref $fun_bam_str -q $fun_table $fun_bqsr_cmd2"
+        run "$cmd" "BQSR post"
+        run "$fun_bqsr_cmd3" "BQSR CSV"
+        run "$fun_bqsr_cmd4" "BQSR plot"
+        gsutil cp $fun_plot $out_metrics &
+        eval "$fun_upload_pid=$1 "
+    fi
+
+    eval "$fun_bqsr2=\"\""
+    eval "$fun_bqsr3=\"\""
+    eval "$fun_bqsr4=\"\""
+}
+
+generate_nondecoy_bed()
+{
+    fun_reference_fai=$1; shift
+    fun_output_dest=$1; shift
+
+    grep -v "hs37d5\|chrEBV\|hs38d1\|decoy" $fun_reference_fai | awk 'BEGIN{OFS="\t"} {print $1,0,$2}' > $fun_output_dest
+}
 

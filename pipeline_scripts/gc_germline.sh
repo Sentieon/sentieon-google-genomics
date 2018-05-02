@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
+
 set -xveo pipefail
 set +H
 
-# TODO
-#  - vqsr
-
 BASEDIR=$(dirname "$0")
-version="201711.02"
+version="201711.03"
 release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)
 source $BASEDIR/gc_functions.sh
 
-export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so
+export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export MALLOC_CONF=lg_dirty_mult:-1
 
 # Set "None" variables to an empty string
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
-    NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE)
+    NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT)
 unset_none_variables ${environmental_variables[@]}
+OUTPUT_CRAM_FORMAT="" # Not yet supported
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
-    STREAM_INPUT
+    STREAM_INPUT OUTPUT_CRAM_FORMAT
 
 # Some basic error handling #
 if [[ -n "$FQ1" && -n "$BAM" ]]; then
@@ -71,9 +71,12 @@ fi
 # ******************************************
 # 1. Mapping reads with BWA-MEM, sorting
 # ******************************************
-
+output_ext="bam"
 if [[ -n $FQ1 ]]; then
-    bwa_mem_align "" $FQ1 $FQ2 $READGROUP local_bams
+#    if [[ -n "$NO_BAM_OUTPUT" || "$DEDUP" != "nodup" ]]; then
+#        util_sort_xargs="${util_sort_xargs} --bam_compression 1 "
+#    fi
+    bwa_mem_align "" $FQ1 $FQ2 $READGROUP local_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
 fi
 
 local_bams_str=""
@@ -94,9 +97,12 @@ fi
 # ******************************************
 # 3. Remove duplicates
 # ******************************************
+output_ext="bam"
+#if [[ -n "$NO_BAM_OUTPUT" ]]; then
+#    dedup_xargs=" --bam_compression 1 "
+#fi
 
-run_mark_duplicates "" $DEDUP metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams ${local_bams[@]}
-
+run_mark_duplicates "" $DEDUP metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext ${local_bams[@]}
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then
         (gsutil cp $metrics_dir/dedup_metrics.txt $out_metrics &&
@@ -112,6 +118,9 @@ if [[ "$DEDUP" != "nodup" ]]; then
         if [[ -f ${bam}.bai ]]; then
             rm ${bam}.bai &
         fi
+        if [[ -f ${bam}.crai ]]; then
+            rm ${bam}.crai &
+        fi
     done
 fi
 
@@ -119,9 +128,13 @@ if [[ -z $NO_BAM_OUTPUT ]]; then
     upload_list=""
     for bam in ${dedup_bams[@]} ${tumor_dedup_bams[@]}; do
         upload_list+=" $bam "
-        upload_list+=" ${bam}.bai "
+        if [[ -f "${bam}.bai" ]]; then
+            upload_list+=" ${bam}.bai "
+        elif [[ -f "${bam}.crai" ]]; then
+            upload_list+=" ${bam}.crai "
+        fi
     done
-    gsutil cp $upload_list $out_bam
+    gsutil cp $upload_list $out_bam &
     upload_deduped_pid=$!
 fi
 
@@ -144,6 +157,9 @@ upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 # 5. Variant Calling
 # ******************************************
 
+## Generate a non-decoy BED file
+generate_nondecoy_bed ${ref}.fai ${ref}_nondecoy.bed
+
 outgvcf=$work/hc.g.vcf.gz
 outvcf=$work/hc.vcf.gz
 
@@ -160,10 +176,10 @@ fi
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_gvcf_args ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_gvcf_args ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d $dbsnp} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d $dbsnp} ${outvcf}"
         outfile=$outvcf
     fi
 
