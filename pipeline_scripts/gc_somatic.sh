@@ -351,7 +351,7 @@ if [[ -z "$NO_VCF" ]]; then
         vcf=$work/tnhaplotyper.vcf.gz
     fi
 
-    cmd="$release_dir/bin/sentieon driver $corealigned_bam_str $corealigned_bqsr_str -t $nt -r $ref --algo $algo ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp $dbsnp} $vcf"
+    cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} $corealigned_bam_str $corealigned_bqsr_str -t $nt -r $ref --algo $algo ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp $dbsnp} $vcf"
 
     if [[ -n $tumor_metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1 "
