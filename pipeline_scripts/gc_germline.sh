@@ -16,7 +16,8 @@ export MALLOC_CONF=lg_dirty_mult:-1
 # Set "None" variables to an empty string
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
-    NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT)
+    NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
+    SENTIEON_KEY)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 

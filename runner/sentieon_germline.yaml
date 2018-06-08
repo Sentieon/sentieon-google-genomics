@@ -55,3 +55,6 @@ inputParameters:
 - name: PIPELINE
   description: Run DNAseq or DNAscope
   defaultValue: DNA
+- name: SENTIEON_KEY
+  description: A Sentieon License Key
+  defaultValue: None

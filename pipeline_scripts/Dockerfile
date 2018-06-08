@@ -36,7 +36,9 @@ COPY --from=builder /usr/local/lib/python2.7/site-packages/crcmod/ /usr/local/li
 COPY --from=builder /usr/local/bin/samtools /usr/local/bin
 
 RUN apt-get update && apt-get install -y \
-        bc && \
+        bc \
+        dnsutils \
+        iputils-ping && \
     pip install --upgrade requests && \
     ln -s ../lib/google-cloud-sdk/bin/gsutil /usr/bin/gsutil
 

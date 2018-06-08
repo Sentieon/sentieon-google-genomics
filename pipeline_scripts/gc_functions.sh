@@ -122,15 +122,45 @@ gc_setup()
     out_variants=$OUTPUT_BUCKET/variants/
     out_bam=$OUTPUT_BUCKET/aligned_reads/
 
+    ## Make gsutil more robust to timeouts - which may occur during streaming transfer
+    if [[ ! -f ~/.boto ]]; then
+        echo -e '[Boto]\nhttp_socket_timeout=300' > ~/.boto
+    fi
+
     ## Setup license information #
     cred=$license_dir/credentials.json
-    python /opt/sentieon/gen_credentials.py $cred &
+    project_file=$license_dir/credentials.json.project
+    python /opt/sentieon/gen_credentials.py $cred "$SENTIEON_KEY" &
     credentials_pid=$!
     sleep 10
-    export SENTIEON_AUTH_MECH=GOOGLE SENTIEON_AUTH_DATA="$cred"
-    export SENTIEON_LICENSE=gcp.sentieon.com:9003 # Hard-coded for now
+    if [[ -n $SENTIEON_KEY ]]; then
+        export SENTIEON_AUTH_MECH=proxy_GOOGLE
+    else
+        export SENTIEON_AUTH_MECH=GOOGLE
+    fi
+    export SENTIEON_AUTH_DATA="$cred"
+    read -r SENTIEON_JOB_TAG < "$project_file"
+    export SENTIEON_JOB_TAG
+
+    ## Test DNS resolution before falling back to hard-coded IP
+    if nslookup gcp.sentieon.com > /dev/null; then
+        lic_srvr_addr=gcp.sentieon.com
+    else
+        lic_srvr_addr=35.188.47.218
+    fi
+    export SENTIEON_LICENSE=$lic_srvr_addr:9003
     if ! $release_dir/libexec/licclnt query -s $SENTIEON_LICENSE klib; then
         echo "Error. Could not validate license."
+        if ping -c 1 $lic_srvr_addr; then
+            echo "License server reachable"
+        else
+            echo "License server unreachable"
+        fi
+        if $release_dir/libexec/licclnt ping; then
+            echo "licclnt ping success"
+        else
+            echo "licclnt ping failed"
+        fi
         exit 1
     fi
 }

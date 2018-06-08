@@ -70,4 +70,7 @@ inputParameters:
 - name: REALIGN_SITES
   description: Known sites for indel realignment (comma-separated)
   defaultValue: None
+- name: SENTIEON_KEY
+  description: A Sentieon License Key
+  defaultValue: None
 

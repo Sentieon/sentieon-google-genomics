@@ -29,5 +29,6 @@
   "GVCF_OUTPUT": null, 
   "FQ2": null, 
   "FQ1": null, 
-  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.03"
+  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.03",
+  "SENTIEON_KEY": null
 }

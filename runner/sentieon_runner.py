@@ -136,6 +136,9 @@ def main(vargs=None):
         sys.exit("Error: Please supply either 'FQ1' or 'BAM' (not both)")
     if job_vars["INTERVAL"] and job_vars["INTERVAL_FILE"]:
         sys.exit("Error: Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
+    if ((job_vars["FQ1"] and job_vars["READGROUP"]) and
+            len(job_vars["FQ1"].split(',')) != len(job_vars["READGROUP"].split(','))):
+        sys.exit("Error: The number of fastq files must match the number of supplied readgroups")
 
     # Pipeline specific errors
     if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq":
@@ -152,6 +155,10 @@ def main(vargs=None):
             sys.exit("Error: TNsnv requires indel realignment. Please supply 'REALIGN_SITES'")
         if job_vars["NO_BAM_OUTPUT"] and job_vars["NO_VCF"] and job_vars["NO_METRICS"]:
             sys.exit("Error: No output files requested")
+        if ((job_vars["TUMOR_FQ1"] and job_vars["TUMOR_READGROUP"]) and
+                len(job_vars["TUMOR_FQ1"].split(',')) != len(job_vars["TUMOR_READGROUP"].split(','))):
+            sys.exit("Error: The number of tumor fastq files must match the number of supplied readgroups")
+
     else:
         sys.exit("Error: DNAseq, DNAscope, TNseq, and TNscope are currently supported")
     if not args.no_check_inputs_exist:
@@ -163,10 +170,10 @@ def main(vargs=None):
     }
     if int(job_vars["DISK_SIZE"]) <= 375:
         print("Disk is less than 375 GB, using a single local SSD")
-        disk["type"] = "LOCAL_SSD"
+        disk["type"] = "local-ssd"
     else:
         print("Disk is greater than 375 GB, using a persistant SSD")
-        disk["type"] = "PERSISTENT_SSD"
+        disk["type"] = "pd-ssd"
         disk["sizeGb"] = int(job_vars["DISK_SIZE"])
 
     vm_dict = {}
@@ -204,7 +211,7 @@ def main(vargs=None):
     cleanup_action = {
             "name": "cleanup",
             "imageUri": job_vars["DOCKER_IMAGE"],
-            "commands": [ "/bin/bash", "-c", "gsutil cp -r /google/logs/action/1/ {}/worker_logs/".format(job_vars["OUTPUT_BUCKET"])],
+            "commands": [ "/bin/bash", "-c", "gsutil cp /google/logs/action/1/stderr {}/worker_logs/stderr.txt && gsutil cp /google/logs/action/1/stdout {}/worker_logs/stdout.txt".format(job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"])],
             "flags": ["ALWAYS_RUN"]
     }
 
@@ -231,11 +238,13 @@ def main(vargs=None):
                     pprint(operation["error"], indent=2)
                     sys.exit(2)
 
-                instance = operation["metadata"]["events"][-1]["details"]["instance"]
-                zone = operation["metadata"]["events"][-1]["details"]["zone"]
+                startup_event = filter(lambda x: "details" in x and "@type" in x["details"] and x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent", operation["metadata"]["events"])[0]
+                instance = startup_event["details"]["instance"]
+                zone = startup_event["details"]["zone"]
                 url = target_url_base.format(**locals())
+                time.sleep(30) # Don't poll too quickly
                 compute_ops = compute_service.zoneOperations().list(project=project, zone=zone, filter="(targetLink eq {url}) (operationType eq compute.instances.preempted)".format(**locals())).execute()
-                if "items" in compute_ops:
+                if "items" in compute_ops and any([x["operationType"] == "compute.instances.preempted" for x in compute_ops["items"]]):
                     print("Run {} failed. Retrying...".format(counter))
                 else:
                     print("Run {} failed, but not due to preemption. Exit".format(counter))
