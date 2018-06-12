@@ -230,12 +230,14 @@ def main(vargs=None):
                     operation = service.projects().operations().get(name=operation['name']).execute()
                 except ssl.SSLError:
                     print("Network error while polling running operation.")
+                    sys.stdout.flush()
                     sys.exit(1)
             pprint(operation, indent=2)
             if "error" in operation:
                 if any([x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent" for x in operation["metadata"]["events"]]) == False:
                     print("Genomics operation failed before running:")
                     pprint(operation["error"], indent=2)
+                    sys.stdout.flush()
                     sys.exit(2)
 
                 startup_event = filter(lambda x: "details" in x and "@type" in x["details"] and x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent", operation["metadata"]["events"])[0]
@@ -270,6 +272,7 @@ def main(vargs=None):
         }
 
         pprint(body, indent=2)
+        sys.stdout.flush()
         operation = service.pipelines().run(body=body).execute()
         counter += 1
 
@@ -280,12 +283,14 @@ def main(vargs=None):
                 operation = service.projects().operations().get(name=operation["name"]).execute()
             except ssl.SSLError:
                 print("Network error while waiting for the final operation to finish")
+                sys.stdout.flush()
                 sys.exit(1)
         if "error" in operation:
             pprint(operation, indent=2)
             if any([x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent" for x in operation["metadata"]["events"]]) == False:
                 print("Genomics operation failed before running:")
                 pprint(operation["error"], indent=2)
+                sys.stdout.flush()
                 sys.exit(2)
 
             instance = operation["metadata"]["events"][-1]["details"]["instance"]
