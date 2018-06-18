@@ -112,10 +112,6 @@ def main(vargs=None):
     preemptible = True if preemptible_tries > 0 else False
     credentials, project_id = google.auth.default()
 
-    # Warn with depreciated json keys
-    if "MIN_RAM_GB" in job_vars or "MIN_CPU" in job_vars:
-        print("Warning: 'MIN_RAM_GB' and 'MIN_CPU' are now ignored. Please use 'MACHINE_TYPE' to specify the instance type")
-
     # Grab the yaml for the workflow
     pipeline_yaml = germline_yaml if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq" else somatic_yaml
     try:
@@ -164,59 +160,51 @@ def main(vargs=None):
     if not args.no_check_inputs_exist:
         check_inputs_exist(job_vars, credentials)
 
-    # Resources dict
-    disk = {
-            "name": "local-disk"
-    }
+    # Construct the pipeline arguments
+    args_dict = {}
+    args_dict["projectId"] = job_vars["PROJECT_ID"]
+    args_dict["logging"] = {"gcsPath": job_vars["OUTPUT_BUCKET"] + "/worker_logs/"}
+    resources_dict = {}
+    resources_dict["minimumRamGb"] = job_vars["MIN_RAM_GB"]
+    resources_dict["minimumCpuCores"] = job_vars["MIN_CPU"]
+    resources_dict["zones"] = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
+    args_dict["resources"] = copy.copy(resources_dict)
+
+    # Translate None back to "None"
+    input_dict = {}
+    for input_var in pipeline_dict["inputParameters"]:
+        input_dict[input_var["name"]] = job_vars[input_var["name"]]
+        if input_dict[input_var["name"]] is None:
+            input_dict[input_var["name"]] = "None"
+    args_dict["inputs"] = input_dict
+
+    # Construct the pipeline object
+    resources_dict = {}
+    resources_dict["preemptible"] = preemptible
+
+    # Ideally we could use mdadm to combine local SSD, but that is not possible inside the container
+    disk = {}
+    disk["name"] = "local-disk"
+    disk["mountPoint"] = "/mnt/work"
     if int(job_vars["DISK_SIZE"]) <= 375:
         print("Disk is less than 375 GB, using a single local SSD")
-        disk["type"] = "local-ssd"
+        disk["type"] = "LOCAL_SSD"
     else:
         print("Disk is greater than 375 GB, using a persistant SSD")
-        disk["type"] = "pd-ssd"
+        disk["type"] = "PERSISTENT_SSD"
         disk["sizeGb"] = int(job_vars["DISK_SIZE"])
 
-    vm_dict = {}
-    vm_dict["machineType"] = job_vars["MACHINE_TYPE"]
-    if job_vars["MACHINE_TYPE"] == "n1-highcpu-96":
-        vm_dict["cpuPlatform"] = "Intel Skylake"
-    vm_dict["preemptible"] = preemptible
-    vm_dict["disks"] = [disk]
-    vm_dict["serviceAccount"] = {"scopes": ["https://www.googleapis.com/auth/cloud-platform"]}
-
-    resources_dict = {
-        "projectId": job_vars["PROJECT_ID"],
-        "zones": job_vars["ZONES"].split(',') if job_vars["ZONES"] else [],
-        "virtualMachine": vm_dict
-    }
-
-    # Environment
-    env_dict = {}
-    for input_var in pipeline_dict["inputParameters"]:
-        env_dict[input_var["name"]] = job_vars[input_var["name"]]
-        if env_dict[input_var["name"]] is None:
-            env_dict[input_var["name"]] = "None"
-
-    # Action
-    run_action = {
-            "name": "run-pipeline",
-            "imageUri": job_vars["DOCKER_IMAGE"],
-            "commands": [ "/bin/bash", "/opt/sentieon/gc_germline.sh"] if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq" else ["bash", "/opt/sentieon/gc_somatic.sh" ],
-            "mounts": [ {
-                "disk": "local-disk",
-                "path": "/mnt/work",
-                "readOnly": False } ],
-    }
-
-    cleanup_action = {
-            "name": "cleanup",
-            "imageUri": job_vars["DOCKER_IMAGE"],
-            "commands": [ "/bin/bash", "-c", "gsutil cp /google/logs/action/1/stderr {}/worker_logs/stderr.txt && gsutil cp /google/logs/action/1/stdout {}/worker_logs/stdout.txt".format(job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"])],
-            "flags": ["ALWAYS_RUN"]
+    disks = [disk]
+    resources_dict["disks"] = disks
+    pipeline_dict["resources"] = resources_dict
+    pipeline_dict["projectId"] = job_vars["PROJECT_ID"]
+    pipeline_dict["docker"] = {
+            "imageName": job_vars["DOCKER_IMAGE"],
+            "cmd": "bash /opt/sentieon/gc_germline.sh" if job_vars["PIPELINE"] == "DNA" or job_vars["PIPELINE"] == "DNAscope" or job_vars["PIPELINE"] == "DNAseq" else "bash /opt/sentieon/gc_somatic.sh"
     }
 
     # Run the pipeline #
-    service = build('genomics', 'v2alpha1', credentials=credentials)
+    service = build('genomics', 'v1alpha2', credentials=credentials)
     compute_service = build("compute", "v1", credentials=credentials)
     operation = None
     counter = 0
@@ -227,22 +215,22 @@ def main(vargs=None):
             while not operation["done"]:
                 time.sleep(polling_interval)
                 try:
-                    operation = service.projects().operations().get(name=operation['name']).execute()
+                    operation = service.operations().get(name=operation['name']).execute()
                 except ssl.SSLError:
                     print("Network error while polling running operation.")
                     sys.stdout.flush()
                     sys.exit(1)
             pprint(operation, indent=2)
             if "error" in operation:
-                if any([x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent" for x in operation["metadata"]["events"]]) == False:
+                try:
+                    zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+                except KeyError:
                     print("Genomics operation failed before running:")
                     pprint(operation["error"], indent=2)
                     sys.stdout.flush()
                     sys.exit(2)
+                instance = operation["metadata"]["runtimeMetadata"]["computeEngine"]["instanceName"]
 
-                startup_event = filter(lambda x: "details" in x and "@type" in x["details"] and x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent", operation["metadata"]["events"])[0]
-                instance = startup_event["details"]["instance"]
-                zone = startup_event["details"]["zone"]
                 url = target_url_base.format(**locals())
                 time.sleep(30) # Don't poll too quickly
                 compute_ops = compute_service.zoneOperations().list(project=project, zone=zone, filter="(targetLink eq {url}) (operationType eq compute.instances.preempted)".format(**locals())).execute()
@@ -256,19 +244,16 @@ def main(vargs=None):
                 break
 
         if preemptible_tries > 0:
-            vm_dict["preemptible"] = True
+            args_dict["resources"]["preemptible"] = True
             preemptible_tries -= 1
         else:
-            vm_dict["preemptible"] = False
+            args_dict["resources"]["preemptible"] = False
             non_preemptible_tries -= 1
 
         print("Running pipeline:")
         body = {
-            "pipeline": {
-                "actions": [ run_action, cleanup_action ],
-                "resources": resources_dict,
-                "environment": env_dict
-            },
+            "ephemeralPipeline": pipeline_dict,
+            "pipelineArgs": args_dict
         }
 
         pprint(body, indent=2)
@@ -280,21 +265,22 @@ def main(vargs=None):
         while not operation["done"]:
             time.sleep(polling_interval)
             try:
-                operation = service.projects().operations().get(name=operation["name"]).execute()
+                operation = service.operations().get(name=operation["name"]).execute()
             except ssl.SSLError:
                 print("Network error while waiting for the final operation to finish")
                 sys.stdout.flush()
                 sys.exit(1)
         if "error" in operation:
             pprint(operation, indent=2)
-            if any([x["details"]["@type"] == "type.googleapis.com/google.genomics.v2alpha1.WorkerAssignedEvent" for x in operation["metadata"]["events"]]) == False:
+            try:
+                zone = operation["metadata"]["runtimeMetadata"]["computeEngine"]["zone"]
+            except KeyError:
                 print("Genomics operation failed before running:")
                 pprint(operation["error"], indent=2)
                 sys.stdout.flush()
                 sys.exit(2)
+            instance = operation["metadata"]["runtimeMetadata"]["computeEngine"]["instanceName"]
 
-            instance = operation["metadata"]["events"][-1]["details"]["instance"]
-            zone = operation["metadata"]["events"][-1]["details"]["zone"]
             url = target_url_base.format(**locals())
             compute_ops = compute_service.zoneOperations().list(project=project, zone=zone, filter="(targetLink eq {url}) (operationType eq compute.instances.preempted)".format(**locals())).execute()
             if "items" in compute_ops:
