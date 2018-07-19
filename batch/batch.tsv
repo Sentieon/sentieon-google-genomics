@@ -1,0 +1,6 @@
+FQ1	FQ2	OUTPUT_BUCKET
+gs://sentieon-test/pipeline_test/inputs/test_normal_1.fastq.gz	gs://sentieon-test/pipeline_test/inputs/test_normal_2.fastq.gz	gs://YOUR_BUCKET/folder/s1
+gs://sentieon-test/pipeline_test/inputs/test_normal2_1.fastq.gz	gs://sentieon-test/pipeline_test/inputs/test_normal2_2.fastq.gz	gs://YOUR_BUCKET/folder/s2
+gs://sentieon-test/pipeline_test/inputs/test_tumor_1.fastq.gz	gs://sentieon-test/pipeline_test/inputs/test_tumor_2.fastq.gz	gs://YOUR_BUCKET/folder/s3
+gs://sentieon-test/pipeline_test/inputs/test_tumor2_1.fastq.gz	gs://sentieon-test/pipeline_test/inputs/test_tumor2_2.fastq.gz	gs://YOUR_BUCKET/folder/s4
+gs://sentieon-test/pipeline_test/inputs/test1_1.fastq.gz	gs://sentieon-test/pipeline_test/inputs/test1_2.fastq.gz	gs://YOUR_BUCKET/folder/s5

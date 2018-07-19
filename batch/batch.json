@@ -1,0 +1,5 @@
+{
+  "REF": "gs://sentieon-test/pipeline_test/reference/hs37d5.fa",
+  "ZONES": "us-central1-a,us-central1-b,us-central1-c,us-central1-f",
+  "PROJECT_ID": "{PROJECT_ID}"
+}
