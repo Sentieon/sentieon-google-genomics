@@ -1,5 +1,5 @@
-FROM sentieon/sentieon:201711.03 as builder
-ARG version=201711.03
+FROM sentieon/sentieon:201711.05 as builder
+ARG version=201711.05
 
 RUN apt-get update && \
     apt-get install -y \
@@ -28,8 +28,8 @@ RUN apt-get update && \
     ./configure && \
     make install
 
-FROM sentieon/sentieon:201711.03
-ARG version=201711.03
+FROM sentieon/sentieon:201711.05
+ARG version=201711.05
 
 COPY --from=builder /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 COPY --from=builder /usr/local/lib/python2.7/site-packages/crcmod/ /usr/local/lib/python2.7/site-packages/crcmod/

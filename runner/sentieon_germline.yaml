@@ -58,3 +58,6 @@ inputParameters:
 - name: SENTIEON_KEY
   description: A Sentieon License Key
   defaultValue: None
+- name: RECALIBRATED_OUTPUT
+  description: Set to apply BQSR to the output BAM file
+  defaultValue: None

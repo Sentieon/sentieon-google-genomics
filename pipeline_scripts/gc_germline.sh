@@ -4,7 +4,7 @@ set -xveo pipefail
 set +H
 
 BASEDIR=$(dirname "$0")
-version="201711.03"
+version="201711.05"
 release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)
@@ -17,13 +17,13 @@ export MALLOC_CONF=lg_dirty_mult:-1
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
     NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
-    SENTIEON_KEY)
+    SENTIEON_KEY RECALIBRATED_OUTPUT)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
-    STREAM_INPUT OUTPUT_CRAM_FORMAT
+    STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY RECALIBRATED_OUTPUT
 
 # Some basic error handling #
 if [[ -n "$FQ1" && -n "$BAM" ]]; then
@@ -125,9 +125,9 @@ if [[ "$DEDUP" != "nodup" ]]; then
     done
 fi
 
-if [[ -z $NO_BAM_OUTPUT ]]; then
+if [[ -z "$NO_BAM_OUTPUT" && (-z "$bqsr_sites" || -z "$RECALIBRATED_OUTPUT" ) ]]; then
     upload_list=""
-    for bam in ${dedup_bams[@]} ${tumor_dedup_bams[@]}; do
+    for bam in ${dedup_bams[@]}; do
         upload_list+=" $bam "
         if [[ -f "${bam}.bai" ]]; then
             upload_list+=" ${bam}.bai "
@@ -146,8 +146,16 @@ upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 # ******************************************
 run_bqsr "" "$dedup_bam_str" metrics_cmd1 bqsr_cmd2 bqsr_cmd3 bqsr_cmd4 bqsr_table bqsr_plot
 
-if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" ]]; then
-    gsutil cp $bqsr_table $out_bam
+if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -n "$RECALIBRATED_OUTPUT" ]]; then
+    outrecal=$work/recalibrated.bam
+    cmd="$release_dir/bin/sentieon driver $dedup_bam_str -q $bqsr_table --algo ReadWriter $outrecal"
+    (run "$cmd" "ReadWriter";
+        gsutil cp $outrecal $out_bam) &
+    upload_recal_pid=$!
+fi
+
+if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -z "$RECALIBRATED_OUTPUT" ]]; then
+    gsutil cp $bqsr_table $out_bam &
     upload_bqsr_pid=$!
 fi
 
@@ -230,6 +238,9 @@ kill $credentials_pid
 
 # Wait for all running uploads to finish
 set +e
+if [[ -n $upload_recal_pid ]]; then
+    wait $upload_recal_pid
+fi
 if [[ -n $upload_metrics_pid ]]; then
     wait $upload_metrics_pid
 fi

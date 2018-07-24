@@ -142,6 +142,8 @@ def main(vargs=None):
             sys.exit("Error: Please supply either 'FQ1' or 'BAM'")
         if job_vars["NO_HAPLOTYPER"] and job_vars["NO_METRICS"] and job_vars["NO_BAM_OUTPUT"]:
             sys.exit("Error: No output files requested")
+        if job_vars["RECALIBRATED_OUTPUT"] and job_vars["BQSR_SITES"] is None:
+            sys.exit("Error: Cannot output a recalibrated BAM file without running BQSR. Please supply 'BQSR_SITES'")
     elif job_vars["PIPELINE"] == "TN" or  job_vars["PIPELINE"] == "TNscope" or job_vars["PIPELINE"] == "TNseq":
         if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
             sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' (not both)")
