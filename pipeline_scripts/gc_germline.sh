@@ -150,7 +150,7 @@ if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -n "$RECALIBRATED_OUTPUT" ]]; t
     outrecal=$work/recalibrated.bam
     cmd="$release_dir/bin/sentieon driver $dedup_bam_str -q $bqsr_table --algo ReadWriter $outrecal"
     (run "$cmd" "ReadWriter";
-        gsutil cp $outrecal $out_bam) &
+        gsutil cp $outrecal ${outrecal}.bai $out_bam) &
     upload_recal_pid=$!
 fi
 
