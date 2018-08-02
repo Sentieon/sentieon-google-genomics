@@ -42,5 +42,5 @@ RUN apt-get update && apt-get install -y \
     pip install --upgrade requests && \
     ln -s ../lib/google-cloud-sdk/bin/gsutil /usr/bin/gsutil
 
-ADD gc_functions.sh gc_somatic.sh gc_germline.sh gen_credentials.py /opt/sentieon/
+ADD gc_functions.sh gc_somatic.sh gc_germline.sh gen_credentials.py poller.sh /opt/sentieon/
 

@@ -132,6 +132,7 @@ gc_setup()
     project_file=$license_dir/credentials.json.project
     python /opt/sentieon/gen_credentials.py $cred "$SENTIEON_KEY" &
     credentials_pid=$!
+    bash /opt/sentieon/poller.sh &
     sleep 10
     if [[ -n $SENTIEON_KEY ]]; then
         export SENTIEON_AUTH_MECH=proxy_GOOGLE
