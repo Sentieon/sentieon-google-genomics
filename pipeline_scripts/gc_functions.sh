@@ -149,14 +149,14 @@ gc_setup()
         lic_srvr_addr=35.188.47.218
     fi
     export SENTIEON_LICENSE=$lic_srvr_addr:9003
-    if ! $release_dir/libexec/licclnt query -s $SENTIEON_LICENSE klib; then
+    if ! $release_dir/bin/sentieon licclnt query -s $SENTIEON_LICENSE klib; then
         echo "Error. Could not validate license."
         if ping -c 1 $lic_srvr_addr; then
             echo "License server reachable"
         else
             echo "License server unreachable"
         fi
-        if $release_dir/libexec/licclnt ping; then
+        if $release_dir/bin/sentieon licclnt ping; then
             echo "licclnt ping success"
         else
             echo "licclnt ping failed"

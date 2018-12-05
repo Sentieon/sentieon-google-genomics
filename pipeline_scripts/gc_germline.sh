@@ -4,7 +4,7 @@ set -xveo pipefail
 set +H
 
 BASEDIR=$(dirname "$0")
-version="201711.05"
+version="201808.01"
 release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)

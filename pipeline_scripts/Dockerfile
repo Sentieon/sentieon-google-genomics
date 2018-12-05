@@ -1,5 +1,5 @@
-FROM sentieon/sentieon:201711.05 as builder
-ARG version=201711.05
+FROM sentieon/sentieon:201808.01 as builder
+ARG version=201808.01
 
 RUN apt-get update && \
     apt-get install -y \
@@ -28,12 +28,21 @@ RUN apt-get update && \
     ./configure && \
     make install
 
-FROM sentieon/sentieon:201711.05
-ARG version=201711.05
+RUN apt-get update && \
+    apt-get install -y \
+        g++ && \
+    curl -Lo samblaster-v.0.1.24.tar.gz https://github.com/GregoryFaust/samblaster/releases/download/v.0.1.24/samblaster-v.0.1.24.tar.gz && \
+    tar -xf samblaster-v.0.1.24.tar.gz && \
+    cd samblaster-v.0.1.24 && \
+    make
+
+FROM sentieon/sentieon:201808.01
+ARG version=201808.01
 
 COPY --from=builder /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 COPY --from=builder /usr/local/lib/python2.7/site-packages/crcmod/ /usr/local/lib/python2.7/site-packages/crcmod/
 COPY --from=builder /usr/local/bin/samtools /usr/local/bin
+COPY --from=builder /samblaster-v.0.1.24/samblaster /usr/local/bin
 
 RUN apt-get update && apt-get install -y \
         bc \
