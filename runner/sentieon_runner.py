@@ -20,8 +20,8 @@ from apiclient.discovery import build
 import google.auth
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-germline_yaml = script_dir + "/sentieon_germline.yaml"
-somatic_yaml = script_dir + "/sentieon_somatic.yaml"
+germline_yaml = script_dir + "/germline.yaml"
+somatic_yaml = script_dir + "/somatic.yaml"
 default_json = script_dir + "/runner_default.json"
 target_url_base = "https://www.googleapis.com/compute/v1/projects/{project}/zones/{zone}/instances/{instance}"
 

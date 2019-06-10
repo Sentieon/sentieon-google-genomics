@@ -130,7 +130,7 @@ gc_setup()
     ## Setup license information #
     cred=$license_dir/credentials.json
     project_file=$license_dir/credentials.json.project
-    python /opt/sentieon/gen_credentials.py $cred "$SENTIEON_KEY" &
+    python /opt/sentieon/gen_credentials.py --email "$EMAIL" $cred "$SENTIEON_KEY" &
     credentials_pid=$!
     sleep 10
     if [[ -n $SENTIEON_KEY ]]; then
@@ -229,6 +229,9 @@ download_reference()
         transfer ${REF}.bwt ${ref}.bwt
         transfer ${REF}.pac ${ref}.pac
         transfer ${REF}.sa ${ref}.sa
+        if $(test -e ${REF}.alt) || $(gsutil -q stat ${REF}.alt); then
+            transfer ${REF}.alt ${ref}.alt
+        fi
     fi
 }
 

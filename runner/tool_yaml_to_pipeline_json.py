@@ -50,13 +50,14 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
             print("'{}' does not equal '{}'".format(a, b))
             raise ValueError("Values are unequal")
 
-germline = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_germline.yaml"))
+script_dir = os.path.dirname(os.path.realpath(__file__))
+germline = yaml.load(open(script_dir + "/germline.yaml"))
 tn = None
 try:
-    tn = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_somatic.yaml"))
+    tn = yaml.load(open(script_dir + "/somatic.yaml"))
 except IOError:
     pass
-output = os.path.dirname(os.path.realpath(__file__)) + "/runner_default.json"
+output = script_dir + "/runner_default.json"
 
 additional_input_params = {
         "ZONES": None,

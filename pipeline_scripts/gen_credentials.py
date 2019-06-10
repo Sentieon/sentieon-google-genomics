@@ -17,6 +17,7 @@ def process_args():
     parser = argparse.ArgumentParser(description="Write fresh instance metadata credentials to a file for license authentication")
     parser.add_argument("auth_data_file", help="A file to hold the instance metadata JWT")
     parser.add_argument("sentieon_key", help="A license key string")
+    parser.add_arugment("--email", help="An email associated with the license")
     return parser.parse_args()
 
 def main(args):
@@ -50,6 +51,8 @@ def main(args):
         out["google_session_token"] = response.text
         if args.sentieon_key:
             out["license_key"] = args.sentieon_key
+        if args.email:
+            out["email"] = args.email
         with open(args.auth_data_file, 'w') as f:
             json.dump(out, f)
         time.sleep(55 * 60) # sleep for 55 minutes before refreshing the token or until killed

@@ -19,6 +19,9 @@ inputParameters:
   description: The refence genome (and assoicated indicies)
 
 # Optional parameters
+- name: EMAIL
+  description: An email to use to obtain an evaluation license
+  defaultValue: None
 - name: FQ1
   defaultValue: None
   description: Fastq for a single sample (comma-separated)
