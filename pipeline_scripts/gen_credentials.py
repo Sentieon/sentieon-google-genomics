@@ -10,15 +10,22 @@ import json
 audience = "https://sentieon.com"
 headers = {'Metadata-Flavor': 'Google'}
 request_format = "full"
-metadata_url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience={}&format={}"
-project_url = "http://metadata.google.internal/computeMetadata/v1/project/project-id?format={}"
+metadata_url = ("http://metadata.google.internal/computeMetadata/v1/instance/"
+                "service-accounts/default/identity?audience={}&format={}")
+project_url = ("http://metadata.google.internal/computeMetadata/v1/project/"
+               "project-id?format={}")
+
 
 def process_args():
-    parser = argparse.ArgumentParser(description="Write fresh instance metadata credentials to a file for license authentication")
-    parser.add_argument("auth_data_file", help="A file to hold the instance metadata JWT")
+    parser = argparse.ArgumentParser(description="Write fresh instance "
+                                     "metadata credentials to a file for "
+                                     "license authentication")
+    parser.add_argument("auth_data_file", help="A file to hold the instance "
+                        "metadata JWT")
     parser.add_argument("sentieon_key", help="A license key string")
-    parser.add_arugment("--email", help="An email associated with the license")
+    parser.add_argument("--email", help="An email associated with the license")
     return parser.parse_args()
+
 
 def main(args):
     if not args:
@@ -55,8 +62,9 @@ def main(args):
             out["email"] = args.email
         with open(args.auth_data_file, 'w') as f:
             json.dump(out, f)
-        time.sleep(55 * 60) # sleep for 55 minutes before refreshing the token or until killed
+        # sleep for 55 minutes before refreshing the token or until killed
+        time.sleep(55 * 60)
+
 
 if __name__ == "__main__":
     main(None)
-

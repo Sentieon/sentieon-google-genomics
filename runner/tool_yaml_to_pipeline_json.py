@@ -6,6 +6,7 @@ import copy
 import os
 import json
 
+
 def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
     '''
     If an object is in b but not a, add it to a.
@@ -22,8 +23,8 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
                 add_to_yaml(a[k], b[k])
             else:
                 a[k] = b[k]
-    elif type(a) is list: # In this case, order is unimportant
-        try: # Only applicable with zones.
+    elif type(a) is list:  # In this case, order is unimportant
+        try:  # Only applicable with zones.
             a_set, b_set = set(a), set(b)
             intersection = list(a_set.intersection(b_set))
             for i in range(len(a) - 1, -1, -1):
@@ -35,7 +36,8 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
         except TypeError:
             pass
         # item["name"] essentially acts as a key
-        a_dict, b_dict = dict([(x["name"], x) for x in a]), dict([(x["name"], x) for x in b])
+        a_dict = dict([(x["name"], x) for x in a])
+        b_dict = dict([(x["name"], x) for x in b])
         for k, v in b_dict.items():
             if k in ignore_keys:
                 continue
@@ -49,6 +51,7 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
         if a != b:
             print("'{}' does not equal '{}'".format(a, b))
             raise ValueError("Values are unequal")
+
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 germline = yaml.load(open(script_dir + "/germline.yaml"))
