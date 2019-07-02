@@ -95,7 +95,8 @@ def check_inputs_exist(job_vars, credentials):
     # FQ specific
     if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:
         for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
-            if not cloud_storage_exists(client, ref + suffix):
+            if (not cloud_storage_exists(client, ref + suffix) and
+                    not cloud_storage_exists(client, ref + ".64" + suffix)):
                 sys.exit("Error: Reference BWA index {} not "
                          "found".format(suffix))
     # BAM specific

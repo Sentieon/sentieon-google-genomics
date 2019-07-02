@@ -130,7 +130,7 @@ gc_setup()
     ## Setup license information #
     cred=$license_dir/credentials.json
     project_file=$license_dir/credentials.json.project
-    python /opt/sentieon/gen_credentials.py --email "$EMAIL" $cred "$SENTIEON_KEY" &
+    python /opt/sentieon/gen_credentials.py ${EMAIL:+--email $EMAIL} $cred "$SENTIEON_KEY" &
     credentials_pid=$!
     sleep 10
     if [[ -n $SENTIEON_KEY ]]; then
@@ -224,13 +224,21 @@ download_reference()
         exit 1
     fi
     if [[ -n "$FQ1" || -n "$TUMOR_FQ1" ]]; then
-        transfer ${REF}.amb ${ref}.amb
-        transfer ${REF}.ann ${ref}.ann
-        transfer ${REF}.bwt ${ref}.bwt
-        transfer ${REF}.pac ${ref}.pac
-        transfer ${REF}.sa ${ref}.sa
-        if $(test -e ${REF}.alt) || $(gsutil -q stat ${REF}.alt); then
-            transfer ${REF}.alt ${ref}.alt
+        if $(test -e ${REF}.64.amb) || $(gsutil -q stat ${REF}.64.amb); then
+            middle=".64"
+        elif $(test -e ${REF}.amb) || $(gsutil -q stat ${REF}.amb); then
+            middle=""
+        else
+            echo "Cannot file BWA index files"
+            exit 1
+        fi
+        transfer ${REF}${middle}.amb ${ref}${middle}.amb
+        transfer ${REF}${middle}.ann ${ref}${middle}.ann
+        transfer ${REF}${middle}.bwt ${ref}${middle}.bwt
+        transfer ${REF}${middle}.pac ${ref}${middle}.pac
+        transfer ${REF}${middle}.sa ${ref}${middle}.sa
+        if $(test -e ${REF}${middle}.alt) || $(gsutil -q stat ${REF}${middle}.alt); then
+            transfer ${REF}${middle}.alt ${ref}${middle}.alt
         fi
     fi
 }
