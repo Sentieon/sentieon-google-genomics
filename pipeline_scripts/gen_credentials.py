@@ -6,6 +6,7 @@ import requests
 import time
 import argparse
 import json
+import os
 
 audience = "https://sentieon.com"
 headers = {'Metadata-Flavor': 'Google'}
@@ -27,10 +28,18 @@ def process_args():
     return parser.parse_args()
 
 
-def main(args):
-    if not args:
-        args = process_args()
+def send_to_background():
+    pid = os.fork()
+    if pid == 0:
+        os.setsid()  # Guarentee no controlling terminal
+        pid = os.fork()
+        if pid != 0:
+            os._exit(0)
+    else:
+        os._exit(0)
 
+
+def main(args):
     url = project_url.format(request_format)
     response = requests.get(url, headers=headers)
     project_id = response.text
@@ -67,4 +76,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main(None)
+    args = process_args()
+    send_to_background()
+    main(args)
