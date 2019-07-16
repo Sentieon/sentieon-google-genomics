@@ -49,7 +49,7 @@ gc_setup
 
 ## Download input files
 if [[ -n "$BAM" ]]; then
-    download_bams $BAM local_bams $input_dir
+    download_bams "$BAM" local_bams $input_dir
 else
     local_bams=()
 fi
@@ -58,16 +58,14 @@ download_intervals
 download_reference
 
 ## Handle the sites files
-gs_bqsr_sites=($(echo $BQSR_SITES | tr ',' ' '))
+IFS=',' read -r -a gs_bqsr_sites <<< "$BQSR_SITES"
 transfer_all_sites $bqsr_dir "${gs_bqsr_sites[@]}"
-local_bqsr_sites="${local_sites[@]}"
+local_bqsr_sites=("${local_sites[@]}")
 bqsr_sites="$local_str"
-
-REALIGN_SITES=
 
 if [[ -n "$DBSNP" ]]; then
     transfer_all_sites $dbsnp_dir $DBSNP
-    dbsnp=${local_sites[0]}
+    dbsnp="${local_sites[0]}"
 fi
 
 # ******************************************
@@ -75,15 +73,12 @@ fi
 # ******************************************
 output_ext="bam"
 if [[ -n $FQ1 ]]; then
-#    if [[ -n "$NO_BAM_OUTPUT" || "$DEDUP" != "nodup" ]]; then
-#        util_sort_xargs="${util_sort_xargs} --bam_compression 1 "
-#    fi
-    bwa_mem_align "" $FQ1 $FQ2 $READGROUP local_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
+    bwa_mem_align "" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
 fi
 
 local_bams_str=""
-for bam in ${local_bams[@]}; do
-    local_bams_str+=" -i $bam "
+for bam in "${local_bams[@]}"; do
+    local_bams_str+=" -i \"$bam\" "
 done
 
 # ******************************************
@@ -100,11 +95,8 @@ fi
 # 3. Remove duplicates
 # ******************************************
 output_ext="bam"
-#if [[ -n "$NO_BAM_OUTPUT" ]]; then
-#    dedup_xargs=" --bam_compression 1 "
-#fi
 
-run_mark_duplicates "" $DEDUP metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext ${local_bams[@]}
+run_mark_duplicates "" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "${local_bams[@]}"
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then
         (gsutil cp $metrics_dir/dedup_metrics.txt $out_metrics &&
@@ -113,30 +105,30 @@ if [[ "$DEDUP" != "nodup" ]]; then
     else
         rm $metrics_dir/dedup_metrics.txt &
     fi
-    for bam in ${local_bams[@]}; do
-        if [[ -f $bam ]]; then
-            rm $bam &
+    for bam in "${local_bams[@]}"; do
+        if [[ -f "$bam" ]]; then
+            rm "$bam" &
         fi
-        if [[ -f ${bam}.bai ]]; then
-            rm ${bam}.bai &
+        if [[ -f "${bam}".bai ]]; then
+            rm "${bam}".bai &
         fi
-        if [[ -f ${bam}.crai ]]; then
-            rm ${bam}.crai &
+        if [[ -f "${bam}".crai ]]; then
+            rm "${bam}".crai &
         fi
     done
 fi
 
 if [[ -z "$NO_BAM_OUTPUT" && (-z "$bqsr_sites" || -z "$RECALIBRATED_OUTPUT" ) ]]; then
     upload_list=""
-    for bam in ${dedup_bams[@]}; do
-        upload_list+=" $bam "
+    for bam in "${dedup_bams[@]}"; do
+        upload_list+=" \"$bam\" "
         if [[ -f "${bam}.bai" ]]; then
-            upload_list+=" ${bam}.bai "
+            upload_list+=" \"${bam}.bai\" "
         elif [[ -f "${bam}.crai" ]]; then
-            upload_list+=" ${bam}.crai "
+            upload_list+=" \"${bam}.crai\" "
         fi
     done
-    gsutil cp $upload_list $out_bam &
+    eval gsutil cp $upload_list $out_bam &
     upload_deduped_pid=$!
 fi
 
@@ -168,14 +160,15 @@ upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 # ******************************************
 
 ## Generate a non-decoy BED file
-generate_nondecoy_bed ${ref}.fai ${ref}_nondecoy.bed
+generate_nondecoy_bed "${ref}".fai "${ref}"_nondecoy.bed
+call_interval="$interval"
+call_interval=${call_interval:-"${ref}"_nondecoy.bed}
 
 outgvcf=$work/hc.g.vcf.gz
 outvcf=$work/hc.vcf.gz
 
 algo=Haplotyper
 extra_vcf_args=""
-extra_gvcf_args=""
 if [[ $PIPELINE == "DNAscope" ]]; then
     algo="DNAscope"
     extra_vcf_args="--var_type snp,indel,bnd"
@@ -186,10 +179,10 @@ fi
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_gvcf_args ${dbsnp:+-d $dbsnp} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo ${dbsnp:+-d "$dbsnp"} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d $dbsnp} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d "$dbsnp"} ${outvcf}"
         outfile=$outvcf
     fi
 
@@ -206,7 +199,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ $PIPELIINE == "DNAscope" ]]; then
         mv $outvcf $tmpvcf
         mv ${outvcf}.tbi ${tmpvcf}.tbi
-        cmd="$release_dir/bin/sentieon driver -t $nt -r '$ref' --algo SVSolver -v $tmpvcf $outvcf"
+        cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo SVSolver -v $tmpvcf $outvcf"
         run "$cmd" "SVSolver"
     fi
     gsutil cp $outfile ${outfile}.tbi $out_variants &
@@ -214,7 +207,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
 fi
 
 if [[ -n $metrics_cmd1 ]]; then
-    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str ${bqsr_table:+-q $bqsr_table}"
+    cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table}"
     cmd+=" $metrics_cmd1"
     run "$cmd" "Metrics collection"
 fi
@@ -223,7 +216,7 @@ upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 
 
 if [[ -n $bqsr_cmd2 ]]; then
-    cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $dedup_bam_str -q $bqsr_table $bqsr_cmd2"
+    cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r \"$ref\" $dedup_bam_str -q $bqsr_table $bqsr_cmd2"
     bqsr_cmd2=
     run "$cmd" "BQSR Post"
 fi

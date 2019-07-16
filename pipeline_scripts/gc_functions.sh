@@ -45,7 +45,7 @@ transfer()
     src_file=$1
     dst_file=$2
     start_s=`date +%s`
-    gsutil cp $src_file $dst_file
+    gsutil cp "$src_file" "$dst_file"
     check_error $? "Transfer $src_file to $dst_file"
     end_s=`date +%s`
     runtime=$(delta_time $start_s $end_s)
@@ -60,21 +60,21 @@ transfer_all_sites()
     local_str=""
     for src_file in "${src_files[@]}"; do
         # File
-        local_file=$dst_dir/$(basename $src_file)
-        transfer $src_file $local_file
-        local_sites+=($local_file)
-        local_str+=" -k $local_file "
+        local_file=$dst_dir/$(basename "$src_file")
+        transfer "$src_file" "$local_file"
+        local_sites+=("$local_file")
+        local_str+=" -k \"$local_file\" "
         # Index
-        if $(test -e ${src_file}.idx) || $(gsutil -q stat ${src_file}.idx); then
-            idx=${src_file}.idx
-        elif $(test -e ${src_file}.tbi) || $(gsutil -q stat ${src_file}.tbi); then
-            idx=${src_file}.tbi
+        if $(test -e "${src_file}".idx) || $(gsutil -q stat "${src_file}".idx); then
+            idx="${src_file}".idx
+        elif $(test -e "${src_file}".tbi) || $(gsutil -q stat "${src_file}".tbi); then
+            idx="${src_file}".tbi
         else
             echo "Cannot find idx for $src_file"
             exit 1
         fi
-        local_idx=$dst_dir/$(basename $idx)
-        transfer $idx $local_idx
+        local_idx=$dst_dir/$(basename "$idx")
+        transfer "$idx" "$local_idx"
     done
 }
 
@@ -171,22 +171,22 @@ download_bams()
     dest_arr=$2
     download_input_dir=$3
 
-    bams=($(echo $bams | tr ',' ' '))
+    IFS=',' read -r -a bams <<< "$bams"
     tmp_bam_dest=()
-    for bam in ${bams[@]}; do
-        local_bam=$download_input_dir/$(basename $bam)
-        transfer $bam $local_bam
-        if $(test -e ${bam}.bai) || $(gsutil -q stat ${bam}.bai); then
-            bai=${bam}.bai
-        elif $(test -e ${bam%%.bam}.bai) || $(gsutil -q stat ${bam%%.bam}.bai); then
-            bai=${bam%%.bam}.bai
+    for bam in "${bams[@]}"; do
+        local_bam=$download_input_dir/$(basename "$bam")
+        transfer "$bam" "$local_bam"
+        if $(test -e "${bam}".bai) || $(gsutil -q stat "${bam}".bai); then
+            bai="${bam}".bai
+        elif $(test -e "${bam%%.bam}".bai) || $(gsutil -q stat "${bam%%.bam}".bai); then
+            bai="${bam%%.bam}".bai
         else
             echo "Cannot find the index file for $bam"
             exit 1
         fi
-        local_bai=$download_input_dir/$(basename $bai)
-        transfer $bai $local_bai
-        tmp_bam_dest+=($local_bam)
+        local_bai=$download_input_dir/$(basename "$bai")
+        transfer "$bai" "$local_bai"
+        tmp_bam_dest+=("$local_bam")
     done
 
     eval "${dest_arr}=(${tmp_bam_dest})"
@@ -195,13 +195,13 @@ download_bams()
 download_intervals()
 {
     if [[ -n "$INTERVAL" ]]; then
-        interval=" --interval $INTERVAL "
+        interval="$INTERVAL"
         interval_list=""
     elif [[ -n "$INTERVAL_FILE" ]]; then
-        local_interval_file=$input_dir/$(basename $INTERVAL_FILE)
-        transfer $INTERVAL_FILE $local_interval_file
-        interval=" --interval $local_interval_file "
-        interval_list=" --interval_list $local_interval_file "
+        local_interval_file=$input_dir/$(basename "$INTERVAL_FILE")
+        transfer "$INTERVAL_FILE" "$local_interval_file"
+        interval="$local_interval_file"
+        interval_list="$local_interval_file"
     else
         interval=""
         interval_list=""
@@ -210,35 +210,35 @@ download_intervals()
 
 download_reference()
 {
-    ref=$ref_dir/$(basename $REF)
-    transfer $REF $ref
-    transfer ${REF}.fai ${ref}.fai
-    if $(test -e ${REF}.dict) || $(gsutil -q stat ${REF}.dict); then
-        transfer ${REF}.dict ${ref}.dict
-    elif $(test -e ${REF%%.fa}.dict) || $(gsutil -q stat ${REF%%.fa}.dict); then
-        transfer ${REF%%.fa}.dict ${ref%%.fa}.dict
-    elif $(test -e ${REF%%.fasta}.dict) || $(gsutil -q stat ${REF%%.fasta}.dict); then
-        transfer ${REF%%.fasta}.dict ${ref%%.fasta}.dict
+    ref=$ref_dir/$(basename "$REF")
+    transfer "$REF" "$ref"
+    transfer "${REF}".fai "${ref}".fai
+    if $(test -e "${REF}".dict) || $(gsutil -q stat "${REF}".dict); then
+        transfer "${REF}".dict "${ref}".dict
+    elif $(test -e "${REF%%.fa}".dict) || $(gsutil -q stat "${REF%%.fa}".dict); then
+        transfer "${REF%%.fa}".dict "${ref%%.fa}".dict
+    elif $(test -e "${REF%%.fasta}".dict) || $(gsutil -q stat "${REF%%.fasta}".dict); then
+        transfer "${REF%%.fasta}".dict "${ref%%.fasta}".dict
     else
         echo "Cannot find reference dictionary"
         exit 1
     fi
     if [[ -n "$FQ1" || -n "$TUMOR_FQ1" ]]; then
-        if $(test -e ${REF}.64.amb) || $(gsutil -q stat ${REF}.64.amb); then
+        if $(test -e "${REF}".64.amb) || $(gsutil -q stat "${REF}".64.amb); then
             middle=".64"
-        elif $(test -e ${REF}.amb) || $(gsutil -q stat ${REF}.amb); then
+        elif $(test -e "${REF}".amb) || $(gsutil -q stat "${REF}".amb); then
             middle=""
         else
             echo "Cannot file BWA index files"
             exit 1
         fi
-        transfer ${REF}${middle}.amb ${ref}${middle}.amb
-        transfer ${REF}${middle}.ann ${ref}${middle}.ann
-        transfer ${REF}${middle}.bwt ${ref}${middle}.bwt
-        transfer ${REF}${middle}.pac ${ref}${middle}.pac
-        transfer ${REF}${middle}.sa ${ref}${middle}.sa
-        if $(test -e ${REF}${middle}.alt) || $(gsutil -q stat ${REF}${middle}.alt); then
-            transfer ${REF}${middle}.alt ${ref}${middle}.alt
+        transfer "${REF}"${middle}.amb "${ref}"${middle}.amb
+        transfer "${REF}"${middle}.ann "${ref}"${middle}.ann
+        transfer "${REF}"${middle}.bwt "${ref}"${middle}.bwt
+        transfer "${REF}"${middle}.pac "${ref}"${middle}.pac
+        transfer "${REF}"${middle}.sa  "${ref}"${middle}.sa
+        if $(test -e "${REF}"${middle}.alt) || $(gsutil -q stat "${REF}"${middle}.alt); then
+            transfer "${REF}"${middle}.alt "${ref}"${middle}.alt
         fi
     fi
 }
@@ -255,9 +255,9 @@ bwa_mem_align()
     fun_util_sort_xargs=$1; shift
     fun_bam_dest=()
 
-    fun_fq1=($(echo $fun_fq1 | tr ',' ' '))
-    fun_fq2=($(echo $fun_fq2 | tr ',' ' '))
-    fun_rgs=($(echo $fun_rgs | tr ',' ' '))
+    IFS=',' read -r -a fun_fq1 <<< "$fun_fq1"
+    IFS=',' read -r -a fun_fq2 <<< "$fun_fq2"
+    IFS=',' read -r -a fun_rgs <<< "$fun_rgs"
 
     if [[ -z "$bwt_max_mem" ]]; then
         mem_kb=$(cat /proc/meminfo | grep "MemTotal" | awk '{print $2}')
@@ -269,20 +269,20 @@ bwa_mem_align()
         fq1=${fun_fq1[$i]}
         fq2=${fun_fq2[$i]}
         readgroup=${fun_rgs[$i]}
-        bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -K 10000000 -M -R \"${readgroup}\" -t $nt $ref "
+        bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -K 10000000 -M -R \"${readgroup}\" -t $nt \"$ref\" "
         if [[ -n "$STREAM_INPUT" ]]; then
             bwa_cmd="$bwa_cmd <(gsutil cp $fq1 -) "
             if [[ -n "$fq2" ]]; then
                 bwa_cmd="$bwa_cmd <(gsutil cp $fq2 -) "
             fi
         else
-            local_fq1=$input_dir/$(basename $fq1)
-            transfer $fq1 $local_fq1
-            bwa_cmd="$bwa_cmd $local_fq1"
+            local_fq1=$input_dir/$(basename "$fq1")
+            transfer "$fq1" "$local_fq1"
+            bwa_cmd="$bwa_cmd \"$local_fq1\""
             if [[ -n "$fq2" ]]; then
-                local_fq2=$input_dir/$(basename $fq2)
-                transfer $fq2 $local_fq2
-                bwa_cmd="$bwa_cmd $local_fq2"
+                local_fq2=$input_dir/$(basename "$fq2")
+                transfer "$fq2" "$local_fq2"
+                bwa_cmd="$bwa_cmd \"$local_fq2\""
             fi
         fi
         local_bam=$work/${fun_base}sorted_bam-${i}.${fun_output_ext}
@@ -297,8 +297,8 @@ bwa_mem_align()
         i=$((i - 1))
         fq1=${fun_fq1[$i]}
         fq2=${fun_fq2[$i]}
-        local_fq1=$input_dir/$(basename $fq1)
-        local_fq2=$input_dir/$(basename $fq2)
+        local_fq1=$input_dir/$(basename "$fq1")
+        local_fq2=$input_dir/$(basename "$fq2")
         if [[ -f "$local_fq1" ]]; then
             rm $fq1 &
         fi
@@ -343,10 +343,10 @@ run_mark_duplicates() {
 
     if [[ "$fun_dedup" == "nodup" || (-z "$fun_bam_str" || -z "${fun_local_bams[@]}") ]]; then
         eval "${fun_bam_str_dest}=\"$fun_bam_str\""
-        eval "${fun_bams_dest}=(${fun_local_bams[@]})"
+        eval "${fun_bams_dest}=(\"${fun_local_bams[@]}\")"
     else
         # LocusCollector
-        cmd="$release_dir/bin/sentieon driver --traverse_param=200000/10000 $fun_bam_str -t $nt -r $ref --algo LocusCollector $work/${fun_base}score.txt"
+        cmd="$release_dir/bin/sentieon driver --traverse_param=200000/10000 $fun_bam_str -t $nt -r \"$ref\" --algo LocusCollector $work/${fun_base}score.txt"
         if [[ -n $(eval "echo \$$fun_metrics_cmd") ]]; then
             eval "cmd+=\" \$$fun_metrics_cmd \""
             eval "$fun_metrics_cmd=''"
@@ -358,14 +358,14 @@ run_mark_duplicates() {
         if [[ "$fun_dedup" != "markdup" ]]; then
             fun_dedup_xargs+=" --rmdup "
         fi
-        cmd="$release_dir/bin/sentieon driver -r $ref --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
+        cmd="$release_dir/bin/sentieon driver -r \"$ref\" --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
         run "$cmd" $fun_dedup
-        for bam in ${local_bams[@]}; do
-            if [[ -n $bam ]]; then
-                rm $bam &
+        for bam in "${local_bams[@]}"; do
+            if [[ -n "$bam" ]]; then
+                rm "$bam" &
             fi
-            if [[ -n ${bam}.bai ]]; then
-                rm ${bam}.bai &
+            if [[ -n "${bam}".bai ]]; then
+                rm "${bam}".bai &
             fi
         done
         eval "${fun_bam_str_dest}=\" -i $dedup_bam \""
@@ -393,7 +393,7 @@ run_bqsr()
     if [[ -n "$bqsr_sites" && -n "$fun_bam_str" ]]; then
         fun_bqsr_table=$work/${fun_base}recal_data.table
         fun_bqsr_post=$work/${fun_base}recal_data.table.post
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r '$ref' $fun_bam_str --algo QualCal $bqsr_sites $fun_bqsr_table"
+        cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r \"$ref\" $fun_bam_str --algo QualCal $bqsr_sites $fun_bqsr_table"
         if [[ -n $(eval "echo \$$fun_metrics_cmd") ]]; then
             eval "cmd+=\" \$$fun_metrics_cmd \""
             eval "$fun_metrics_cmd=''"
@@ -428,7 +428,7 @@ run_bqsr_post()
     eval "fun_bqsr_cmd4=\$$fun_bqsr4"
 
     if [[ -n "$fun_bqsr_cmd2" && -n "$fun_bam_str" && -f "$fun_table" ]]; then
-        cmd="$release_dir/bin/sentieon driver $interval -t $nt -r $ref $fun_bam_str -q $fun_table $fun_bqsr_cmd2"
+        cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r $ref $fun_bam_str -q $fun_table $fun_bqsr_cmd2"
         run "$cmd" "BQSR post"
         run "$fun_bqsr_cmd3" "BQSR CSV"
         run "$fun_bqsr_cmd4" "BQSR plot"
@@ -446,6 +446,6 @@ generate_nondecoy_bed()
     fun_reference_fai=$1; shift
     fun_output_dest=$1; shift
 
-    grep -v "hs37d5\|chrEBV\|hs38d1\|decoy" $fun_reference_fai | awk 'BEGIN{OFS="\t"} {print $1,0,$2}' > $fun_output_dest
+    grep -v "hs37d5\|chrEBV\|hs38d1\|decoy" "$fun_reference_fai" | awk 'BEGIN{OFS="\t"} {print $1,0,$2}' > $fun_output_dest
 }
 
