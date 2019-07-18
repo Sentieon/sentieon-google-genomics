@@ -286,8 +286,10 @@ bwa_mem_align()
             fi
         fi
         local_bam=$work/${fun_base}sorted_bam-${i}.${fun_output_ext}
-        bwa_cmd="$bwa_cmd | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
+        bwa_log=$work/${fun_base}_bwa.log
+        bwa_cmd="$bwa_cmd 2>$bwa_log | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
         run "$bwa_cmd" "BWA-mem and sorting"
+        gsutil cp $bwa_log $out_bam
         fun_bam_dest+=($local_bam)
     done
     echo "BWA ended"

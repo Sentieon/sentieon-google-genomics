@@ -31,7 +31,7 @@ def process_args():
 def send_to_background():
     pid = os.fork()
     if pid == 0:
-        os.setsid()  # Guarentee no controlling terminal
+        os.setsid()  # Guarantee no controlling terminal
         pid = os.fork()
         if pid != 0:
             os._exit(0)
