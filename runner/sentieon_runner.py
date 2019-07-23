@@ -237,7 +237,7 @@ def main(vargs=None):
     }
 
     # Environment
-    env_dict = []
+    env_dict = {}
     for input_var in pipeline_dict["inputParameters"]:
         env_dict[input_var["name"]] = job_vars[input_var["name"]]
         if env_dict[input_var["name"]] is None:
@@ -247,11 +247,11 @@ def main(vargs=None):
     if (job_vars["PIPELINE"] == "DNA" or
             job_vars["PIPELINE"] == "DNAscope" or
             job_vars["PIPELINE"] == "DNAseq"):
-        _cmd = "bash /opt/sentieon/gc_germline.sh"
+        _cmd = "/opt/sentieon/gc_germline.sh"
     else:
-        _cmd = "bash /opt/sentieon/gc_somatic.sh"
+        _cmd = "/opt/sentieon/gc_somatic.sh"
 
-    run_action {
+    run_action = {
         "name": "run-pipeline",
         "imageUri": job_vars["DOCKER_IMAGE"],
         "commands": ["/bin/bash", _cmd],
@@ -269,9 +269,9 @@ def main(vargs=None):
             "/bin/bash",
             "-c",
             ("gsutil cp /google/logs/action/1/stderr "
-             "{}/worker_logs/stderr.txt && "
+             "\"{}/worker_logs/stderr.txt\" && "
              "gsutil cp /google/logs/action/1/stdout "
-             "{}/worker_logs/stdout.txt").format(
+             "\"{}/worker_logs/stdout.txt\"").format(
                  job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"])],
         "flags": ["ALWAYS_RUN"]
     }
