@@ -4,7 +4,7 @@ set -xveo pipefail
 set +H
 
 BASEDIR=$(dirname "$0")
-version="201808.01"
+version="201808.07"
 release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)
@@ -64,7 +64,7 @@ local_bqsr_sites=("${local_sites[@]}")
 bqsr_sites="$local_str"
 
 if [[ -n "$DBSNP" ]]; then
-    transfer_all_sites $dbsnp_dir $DBSNP
+    transfer_all_sites $dbsnp_dir "$DBSNP"
     dbsnp="${local_sites[0]}"
 fi
 
@@ -99,7 +99,7 @@ output_ext="bam"
 run_mark_duplicates "" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "${local_bams[@]}"
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then
-        (gsutil cp $metrics_dir/dedup_metrics.txt $out_metrics &&
+        (gsutil cp $metrics_dir/dedup_metrics.txt "$out_metrics" &&
             rm $metrics_dir/dedup_metrics.txt) &
         upload_dedup_pid=$!
     else
@@ -128,7 +128,7 @@ if [[ -z "$NO_BAM_OUTPUT" && (-z "$bqsr_sites" || -z "$RECALIBRATED_OUTPUT" ) ]]
             upload_list+=" \"${bam}.crai\" "
         fi
     done
-    eval gsutil cp $upload_list $out_bam &
+    eval gsutil cp $upload_list "$out_bam" &
     upload_deduped_pid=$!
 fi
 
@@ -143,12 +143,12 @@ if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -n "$RECALIBRATED_OUTPUT" ]]; t
     outrecal=$work/recalibrated.bam
     cmd="$release_dir/bin/sentieon driver $dedup_bam_str -q $bqsr_table --algo ReadWriter $outrecal"
     (run "$cmd" "ReadWriter";
-        gsutil cp $outrecal ${outrecal}.bai $out_bam) &
+        gsutil cp $outrecal ${outrecal}.bai "$out_bam") &
     upload_recal_pid=$!
 fi
 
 if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -z "$RECALIBRATED_OUTPUT" ]]; then
-    gsutil cp $bqsr_table $out_bam &
+    gsutil cp $bqsr_table "$out_bam" &
     upload_bqsr_pid=$!
 fi
 
@@ -179,10 +179,10 @@ fi
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo ${dbsnp:+-d "$dbsnp"} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo ${dbsnp:+-d \"$dbsnp\"} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d "$dbsnp"} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d \"$dbsnp\"} ${outvcf}"
         outfile=$outvcf
     fi
 
@@ -196,13 +196,13 @@ if [[ -z $NO_HAPLOTYPER ]]; then
     fi
 
     run "$cmd" "Haplotyper variant calling"
-    if [[ $PIPELIINE == "DNAscope" ]]; then
+    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" ]]; then
         mv $outvcf $tmpvcf
         mv ${outvcf}.tbi ${tmpvcf}.tbi
         cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo SVSolver -v $tmpvcf $outvcf"
         run "$cmd" "SVSolver"
     fi
-    gsutil cp $outfile ${outfile}.tbi $out_variants &
+    gsutil cp $outfile ${outfile}.tbi "$out_variants" &
     upload_vcf_pid=$!
 fi
 
@@ -224,11 +224,9 @@ fi
 if [[ -n $bqsr_cmd3 ]]; then
     run "$bqsr_cmd3" "BQSR CSV"
     run "$bqsr_cmd4" "BQSR plot"
-    gsutil cp $plot $out_metrics &
+    gsutil cp $plot "$out_metrics" &
     upload_bqsr_metrics_pid=$!
 fi
-
-kill $credentials_pid
 
 # Wait for all running uploads to finish
 set +e

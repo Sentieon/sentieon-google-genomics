@@ -88,7 +88,7 @@ upload_metrics()
     eval "fun_metrics_cmd2=\$$fun_var_cmd2"
     if [[ -n "$fun_metrics_cmd2" && -z "$fun_metrics_cmd1" && -f "${fun_metrics_files[0]}" ]]; then
         (run "$fun_metrics_cmd2" "Plotting metrics results." &&
-            gsutil cp ${fun_metrics_files[@]} $out_metrics &&
+            gsutil cp ${fun_metrics_files[@]} "$out_metrics" &&
             rm ${fun_metrics_files[@]}) &
         eval "$fun_pid=$! "
         eval "$fun_var_cmd2=''"
@@ -130,8 +130,7 @@ gc_setup()
     ## Setup license information #
     cred=$license_dir/credentials.json
     project_file=$license_dir/credentials.json.project
-    python /opt/sentieon/gen_credentials.py ${EMAIL:+--email $EMAIL} $cred "$SENTIEON_KEY" &
-    credentials_pid=$!
+    python /opt/sentieon/gen_credentials.py ${EMAIL:+--email $EMAIL} $cred "$SENTIEON_KEY"
     sleep 10
     if [[ -n $SENTIEON_KEY ]]; then
         export SENTIEON_AUTH_MECH=proxy_GOOGLE
@@ -289,7 +288,7 @@ bwa_mem_align()
         bwa_log=$work/${fun_base}_bwa.log
         bwa_cmd="$bwa_cmd 2>$bwa_log | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
         run "$bwa_cmd" "BWA-mem and sorting"
-        gsutil cp $bwa_log $out_bam
+        gsutil cp $bwa_log "$out_bam"
         fun_bam_dest+=($local_bam)
     done
     echo "BWA ended"
@@ -302,10 +301,10 @@ bwa_mem_align()
         local_fq1=$input_dir/$(basename "$fq1")
         local_fq2=$input_dir/$(basename "$fq2")
         if [[ -f "$local_fq1" ]]; then
-            rm $fq1 &
+            rm $local_fq1 &
         fi
         if [[ -f "$local_fq2" ]]; then
-            rm $fq2 &
+            rm $local_fq2 &
         fi
     done
 
@@ -362,14 +361,6 @@ run_mark_duplicates() {
         fi
         cmd="$release_dir/bin/sentieon driver -r \"$ref\" --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
         run "$cmd" $fun_dedup
-        for bam in "${local_bams[@]}"; do
-            if [[ -n "$bam" ]]; then
-                rm "$bam" &
-            fi
-            if [[ -n "${bam}".bai ]]; then
-                rm "${bam}".bai &
-            fi
-        done
         eval "${fun_bam_str_dest}=\" -i $dedup_bam \""
         eval "${fun_bams_dest}=(${dedup_bam})"
     fi
@@ -408,11 +399,11 @@ run_bqsr()
         fi
     fi
 
-    eval "$fun_bqsr2=\"$fun_bqsr_cmd2\""
-    eval "$fun_bqsr3=\"$fun_bqsr_cmd3\""
-    eval "$fun_bqsr4=\"$fun_bqsr_cmd4\""
-    eval "$fun_table=\"$fun_bqsr_table\""
-    eval "$fun_plot=\"$plot\""
+    eval "$fun_bqsr2='$fun_bqsr_cmd2'"
+    eval "$fun_bqsr3='$fun_bqsr_cmd3'"
+    eval "$fun_bqsr4='$fun_bqsr_cmd4'"
+    eval "$fun_table='$fun_bqsr_table'"
+    eval "$fun_plot='$plot'"
 }
 
 run_bqsr_post()
@@ -434,7 +425,7 @@ run_bqsr_post()
         run "$cmd" "BQSR post"
         run "$fun_bqsr_cmd3" "BQSR CSV"
         run "$fun_bqsr_cmd4" "BQSR plot"
-        gsutil cp $fun_plot $out_metrics &
+        gsutil cp $fun_plot "$out_metrics" &
         eval "$fun_upload_pid=$1 "
     fi
 
@@ -448,6 +439,6 @@ generate_nondecoy_bed()
     fun_reference_fai=$1; shift
     fun_output_dest=$1; shift
 
-    grep -v "hs37d5\|chrEBV\|hs38d1\|decoy" "$fun_reference_fai" | awk 'BEGIN{OFS="\t"} {print $1,0,$2}' > $fun_output_dest
+    grep -v "hs37d5\|chrEBV\|hs38d1\|decoy" "$fun_reference_fai" | awk 'BEGIN{OFS="\t"} {print $1,0,$2}' > "$fun_output_dest"
 }
 
