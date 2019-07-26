@@ -4,27 +4,26 @@ set -xveo pipefail
 set +H
 
 BASEDIR=$(dirname "$0")
-version="201808.07"
-release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)
 source $BASEDIR/gc_functions.sh
-
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
-export MALLOC_CONF=lg_dirty_mult:-1
 
 # Set "None" variables to an empty string
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
     NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
-    SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL)
+    SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL SENTIEON_VERSION)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
     STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY RECALIBRATED_OUTPUT \
-    EMAIL
+    EMAIL SENTIEON_VERSION
+
+release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
+export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export MALLOC_CONF=lg_dirty_mult:-1
 
 # Basic error handling #
 if [[ -n "$FQ1" && -n "$BAM" ]]; then

@@ -1,5 +1,4 @@
 FROM python:2.7.16-slim-stretch as downloader
-ARG VERSION=201808.07
 
 # Install gsutil
 RUN apt-get update && \
@@ -29,27 +28,18 @@ RUN apt-get update && \
     ./configure && \
     make install
 
-# Install sentieon
-RUN mkdir -p /opt/sentieon/ && \
-    pip install requests urllib3 && \
-    curl -L "https://s3.amazonaws.com/sentieon-release/software/sentieon-genomics-${VERSION}.tar.gz" | \
-        tar -zxf - -C /opt/sentieon/
-
 FROM python:2.7.16-slim-stretch
-ARG VERSION=201808.07
 
-LABEL container.base.image="python:2.7.16-slim-stretch" \
-      software.version="${VERSION}" \
-      software.website="https://www.sentieon.com/"
+LABEL container.base.image="python:2.7.16-slim-stretch"
 
 COPY --from=downloader /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 COPY --from=downloader /usr/local/lib/python2.7/site-packages /usr/local/lib/python2.7/site-packages
 COPY --from=downloader /usr/local/bin/samtools /usr/local/bin
-COPY --from=downloader /opt/sentieon /opt/sentieon
 
 CMD ["/bin/bash"]
 
 RUN apt-get update && apt-get install -y \
+	curl \
         libncurses5-dev \
         bc \
         dnsutils \

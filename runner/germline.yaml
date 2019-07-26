@@ -22,6 +22,9 @@ inputParameters:
 - name: EMAIL
   description: An email to use to obtain an evaluation license
   defaultValue: None
+- name: SENTIEON_VERSION
+  description: Version of the Sentieon software to use
+  defaultValue: 201808.07
 - name: READGROUP
   description: Readgroup information to add during alignment
   defaultValue: "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA"
