@@ -22,8 +22,6 @@ readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     EMAIL SENTIEON_VERSION
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
-export MALLOC_CONF=lg_dirty_mult:-1
 
 # Basic error handling #
 if [[ -n "$FQ1" && -n "$BAM" ]]; then
@@ -45,6 +43,8 @@ fi
 # 0. Setup
 # **********************************
 gc_setup
+export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export MALLOC_CONF=lg_dirty_mult:-1
 
 ## Download input files
 if [[ -n "$BAM" ]]; then

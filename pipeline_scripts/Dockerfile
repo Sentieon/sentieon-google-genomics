@@ -28,6 +28,9 @@ RUN apt-get update && \
     ./configure && \
     make install
 
+# Install metadata script dependencies
+RUN pip install requests urllib3
+
 FROM python:2.7.16-slim-stretch
 
 LABEL container.base.image="python:2.7.16-slim-stretch"

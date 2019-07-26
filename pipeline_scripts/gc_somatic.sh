@@ -60,13 +60,13 @@ readonly FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     SENTIEON_VERSION
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
-export MALLOC_CONF=lg_dirty_mult:-1
 
 # *****************************
 # 0. Setup
 # *****************************
 gc_setup
+export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export MALLOC_CONF=lg_dirty_mult:-1
 
 ## Download input files
 if [[ -n "$BAM" ]]; then
