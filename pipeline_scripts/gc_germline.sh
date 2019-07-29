@@ -12,14 +12,15 @@ source $BASEDIR/gc_functions.sh
 environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
     NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
-    SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL SENTIEON_VERSION)
+    SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL SENTIEON_VERSION CALLING_ARGS \
+    DNASCOPE_MODEL)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
     STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY RECALIBRATED_OUTPUT \
-    EMAIL SENTIEON_VERSION
+    EMAIL SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
@@ -43,7 +44,7 @@ fi
 # 0. Setup
 # **********************************
 gc_setup
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export LD_PRELOAD=${release_dir}/lib/libjemalloc.so
 export MALLOC_CONF=lg_dirty_mult:-1
 
 ## Download input files
@@ -55,6 +56,9 @@ fi
 
 download_intervals
 download_reference
+if [[ $PIPELINE == "DNAscope" && -n "$DNASCOPE_MODEL" ]]; then
+    curl -L -o ${input_dir}/dnascope.model "$DNASCOPE_MODEL"
+fi
 
 ## Handle the sites files
 IFS=',' read -r -a gs_bqsr_sites <<< "$BQSR_SITES"
@@ -170,7 +174,11 @@ algo=Haplotyper
 extra_vcf_args=""
 if [[ $PIPELINE == "DNAscope" ]]; then
     algo="DNAscope"
-    extra_vcf_args="--var_type snp,indel,bnd"
+    if [[ -n "$DNASCOPE_MODEL" ]]; then
+        extra_vcf_args="--model ${input_dir}/dnascope.model"
+    else
+        extra_vcf_args="--var_type snp,indel,bnd"
+    fi
     outvcf=$work/dnascope.vcf.gz
     outgvcf=$work/dnascope.g.vcf.gz
     tmpvcf=$work/tmp.vcf.gz
@@ -178,13 +186,12 @@ fi
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo ${dbsnp:+-d \"$dbsnp\"} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $CALLING_ARGS ${dbsnp:+-d \"$dbsnp\"} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $extra_vcf_args ${dbsnp:+-d \"$dbsnp\"} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $CALLING_ARGS $extra_vcf_args ${dbsnp:+-d \"$dbsnp\"} ${outvcf}"
         outfile=$outvcf
     fi
-
     if [[ -n $metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1"
         metrics_cmd1=
@@ -193,14 +200,24 @@ if [[ -z $NO_HAPLOTYPER ]]; then
         cmd+=" $bqsr_cmd2"
         bqsr_cmd2=
     fi
-
     run "$cmd" "Haplotyper variant calling"
-    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" ]]; then
+
+    # DNAscope SV calling
+    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" && -z "$DNASCOPE_MODEL" ]]; then
         mv $outvcf $tmpvcf
         mv ${outvcf}.tbi ${tmpvcf}.tbi
         cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo SVSolver -v $tmpvcf $outvcf"
         run "$cmd" "SVSolver"
     fi
+
+    # DNAscope model apply
+    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" && -n "$DNASCOPE_MODEL" ]]; then
+        mv $outvcf $tmpvcf
+        mv ${outvcf}.tbi ${tmpvcf}.tbi
+        cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo DNAModelApply --model ${input_dir}/dnascope.model -v $tmpvcf $outvcf"
+        run "$cmd" "DNAscope model apply"
+    fi
+
     gsutil cp $outfile ${outfile}.tbi "$out_variants" &
     upload_vcf_pid=$!
 fi

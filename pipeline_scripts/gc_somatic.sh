@@ -13,7 +13,7 @@ environmental_variables=(FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
     STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT SENTIEON_KEY \
-    EMAIL SENTIEON_VERSION)
+    EMAIL SENTIEON_VERSION CALLING_ARGS)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
@@ -57,7 +57,7 @@ readonly FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
     STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT EMAIL \
-    SENTIEON_VERSION
+    SENTIEON_VERSION CALLING_ARGS
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
@@ -65,7 +65,7 @@ release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 # 0. Setup
 # *****************************
 gc_setup
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
+export LD_PRELOAD=${release_dir}/lib/libjemalloc.so
 export MALLOC_CONF=lg_dirty_mult:-1
 
 ## Download input files
@@ -341,7 +341,7 @@ if [[ -z "$NO_VCF" ]]; then
         vcf=$work/tnhaplotyper.vcf.gz
     fi
 
-    cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" $corealigned_bam_str $corealigned_bqsr_str -t $nt -r \"$ref\" --algo $algo ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp \"$dbsnp\"} $vcf"
+    cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" $corealigned_bam_str $corealigned_bqsr_str -t $nt -r \"$ref\" --algo $algo $CALLING_ARGS ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp \"$dbsnp\"} $vcf"
 
     if [[ -n $tumor_metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1 "

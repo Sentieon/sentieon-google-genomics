@@ -79,4 +79,6 @@ inputParameters:
 - name: SENTIEON_KEY
   description: A Sentieon License Key
   defaultValue: None
-
+- name: CALLING_ARGS
+  description: Additional parameters to set during variant calling
+  defaultValue: None
