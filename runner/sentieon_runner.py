@@ -367,8 +367,8 @@ def main(vargs=None):
                       "to finish")
                 sys.stdout.flush()
                 sys.exit(1)
+        pprint(operation, indent=2)
         if "error" in operation:
-            pprint(operation, indent=2)
             if (not any([x["details"]["@type"] == "type.googleapis.com/"
                          "google.genomics.v2alpha1.WorkerAssignedEvent"
                          for x in operation["metadata"]["events"]])):
