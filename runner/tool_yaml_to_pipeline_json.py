@@ -69,7 +69,7 @@ additional_input_params = {
         "MIN_RAM_GB": 56,
         "PIPELINE": "DNA",
         "PROJECT_ID": None,
-        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.02",
+        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.0",
         "PREEMPTIBLE_TRIES": 0,
         "NONPREEMPTIBLE_TRY": True
 }
