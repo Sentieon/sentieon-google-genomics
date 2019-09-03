@@ -31,7 +31,7 @@
   "DISK_SIZE": 300,
   "MACHINE_TYPE": "n1-highcpu-64",
   "PROJECT_ID": null,
-  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.02",
+  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.0",
   "CALLING_ARGS": null,
   "DNASCOPE_MODEL": "https://s3.amazonaws.com/sentieon-release/other/SentieonDNAscopeModelBeta0.4a-201808.05.model",
   "PREEMPTIBLE_TRIES": 0,
