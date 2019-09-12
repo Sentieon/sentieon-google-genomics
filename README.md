@@ -31,7 +31,9 @@ For a tutorial, see Google's tutorial on [running a Sentieon DNAseq pipeline](ht
 - [Where to get help](#help)
 
 <a name="highlights"/>
+
 ## Highlights
+
 - Easily run the Sentieon Pipelines on the Google Cloud.
 - Pipelines are optimized by Sentieon to be well-tuned for efficiently processing WES and WGS samples.
 - All Sentieon pipelines and variant callers are available including DNAseq, DNAscope, TNseq, and TNscope
@@ -39,7 +41,9 @@ For a tutorial, see Google's tutorial on [running a Sentieon DNAseq pipeline](ht
 - Automatic 14-day free-trial of the Sentieon software on the Google Cloud
 
 <a name="prerequisites"/>
+
 ## Prerequisites
+
 1. [Install Python 2.7+](https://www.python.org/downloads/).
 2. Select or create a GCP project.
 3. Make sure that billing is enabled for your Google Cloud Platform project.
@@ -58,9 +62,14 @@ For best results in this tutorial, you should request additional quota above you
 You can leave other quota request fields empty to keep your current quotas.
 
 <a name="running"/>
+
 ## Running a pipeline
+
+
 <a name="configure"/>
+
 ### Configuring your environment
+
 Setup a Python virtualenv to manage the environment. First, install virtualenv if necessary
 ```bash
 pip install --upgrade virtualenv
@@ -78,7 +87,9 @@ pip install --upgrade \
 ```
 
 <a name="example"/>
+
 ### Download the pipeline script
+
 Download the pipeline script and move into the new directory.
 ```bash
 git clone https://github.com/sentieon/sentieon-google-genomics.git
@@ -86,7 +97,9 @@ cd sentieon-google-genomics
 ```
 
 <a name="input"/>
+
 ### Understanding the input format
+
 The runner script accepts a JSON file as input. In the repository you downloaded, there is an `examples/example.json` file with the following content:
 ```json
 {
@@ -99,6 +112,7 @@ The runner script accepts a JSON file as input. In the repository you downloaded
   "EMAIL": "EMAIL"
 }
 ```
+
 The following table describes the JSON keys in the file:
 
 | JSON key      | Description                                                                   |
@@ -115,7 +129,9 @@ The following table describes the JSON keys in the file:
 The `FQ1`, `FQ2`, `REF`, and `ZONES` fields will work with the defaults. However, the `OUTPUT_BUCKET`, `PROJECT_ID`, and `EMAIL` fields will need to be updated to point to your specific output bucket/path, Project ID, and email address.
 
 <a name="run"/>
+
 ### Run the example pipelines
+
 Edit the `OUTPUT_BUCKET`, `PROJECT_ID`, and `EMAIL` fields in the `examples/example.json` to your output bucket/path, the GCP Project ID that you setup earlier, and email you want associated with your Sentieon license. By supplying the `EMAIL` field, your PROJECT_ID will automatically receive a 14 day free trial for the Sentieon software on the Google Cloud.
 
 You after modifying the `examples/example.json` file, you can use the following command to run the DNAseq pipeline on a small test dataset.
@@ -124,12 +140,15 @@ python runner/sentieon_runner.py examples/example.json
 ```
 
 <a name="understand"/>
+
 ### Understanding the output
+
 If execution is successful, the runner script will print some logging information followed by `Operation succeeded` to the terminal. Output files from the pipeline can then be found in the `OUTPUT_BUCKET` location in Google Cloud Storage including alignment (BAM) files, variant calls, sample metrics and logging information.
 
 In the event of run failure, some diagnostic information will be printed to the screen followed by an error message. For assistance, please send the diagnostic information along with any log files in `OUTPUT_BUCKET`/worker_logs/ to support@sentieon.com.
 
 <a name="other_examples"/>
+
 ### Other example pipelines
 In the `examples` directory, you can find the following example configurations:
 
@@ -140,11 +159,15 @@ In the `examples` directory, you can find the following example configurations:
 | tn_example.json | TNseq pipeline from FASTQ to VCF for Tumor Normal Pairs            |
 
 <a name="recommended"/>
+
 ## Recommended configurations
+
 Below are some recommended configurations for some common use-cases. The cost and runtime estimates below assume that jobs are run on preemptible instances that were not preempted during job execution.
 
 <a name="germline"/>
+
 ### Germline Whole Genome and Whole Exome Sequencing
+
 The following configuration will run a 30x human genome at a cost of approximately $1.35 and will take about 2 hours. This configuration can also be used to run a 100x whole exome at a cost of approximately $0.30 and will take about 35 minutes.
 ```json
 {
@@ -168,7 +191,9 @@ The `PIPELINE` key can be changed to `DNAscope` to use the Sentieon DNAscope var
 
 
 <a name="somatic"/>
+
 ### Somatic Whole Genome and Whole Exome Sequencing
+
 The following configuration will run a paired 60-30x human genome at a cost of approximately $3.70 and will take about 7 hours. This configuration can also be used to run a paired 150-150x human exome at a cost of approximately $0.60 and will take about 1.5 hours.
 ```json
 {
@@ -194,9 +219,13 @@ The following configuration will run a paired 60-30x human genome at a cost of a
 The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant caller. The `PIPELINE` key can be changed to `TNscope` to use the Sentieon TNscope variant caller for improved variant calling accuracy. For large input files, `DISK_SIZE` should be increased.
 
 <a name="configurations_germline"/>
+
 ## Additional options - Germline
+
 <a name="germline_input"/>
+
 ### Input file options
+
 | JSON Key       | Description                                                                          |
 |--------------- | ------------------------------------------------------------------------------------ |
 | FQ1            | A comma-separated list of input R1 FASTQ files                                       |
@@ -211,7 +240,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | DNASCOPE_MODEL | A trained model to use during DNAscope variant calling                               |
 
 <a name="germline_machine"/>
+
 ### Machine options
+
 | JSON Key     | Description                                                                 |
 | ------------ | --------------------------------------------------------------------------- |
 | ZONES        | GCE Zones to potentially launch the job in                                  |
@@ -219,7 +250,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | MACHINE_TYPE | The type of GCE machine to use to run the pipeline                          |
 
 <a name="germline_config"/>
+
 ### Pipeline configurations
+
 | JSON Key            | Description                                                        |
 | ------------------- | ------------------------------------------------------------------ |
 | SENTIEON_VERSION    | The version of the Sentieon software package to use                |
@@ -234,7 +267,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | PIPELINE            | The pipeline to run (DNAseq or DNAscope)                           |
 
 <a name="germline_options"/>
+
 ### Pipeline options
+
 | JSON Key            | Description                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | OUTPUT_BUCKET       | The Google Cloud Storage Bucket and path prefix to use for the output files                         |
@@ -245,9 +280,13 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
 
 <a name="configurations_somatic"/>
+
 ## Additional options - Somatic
+
 <a name="somatic_input"/>
+
 ### Input file options
+
 | JSON Key        | Description                                                                                 |
 |---------------- | ------------------------------------------------------------------------------------------- |
 | TUMOR_FQ1       | A comma-separated list of input R1 tumor FASTQ files                                        |
@@ -265,7 +304,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | INTERVAL_FILE   | A file of intervals(s) to use during variant calling                                        |
 
 <a name="somatic_machine"/>
+
 ### Machine options
+
 | JSON Key     | Description                                                                 |
 | ------------ | --------------------------------------------------------------------------- |
 | ZONES        | GCE Zones to potentially launch the job in                                  |
@@ -273,7 +314,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | MACHINE_TYPE | The type of GCE machine to use to run the pipeline                          |
 
 <a name="somatic_config"/>
+
 ### Pipeline configurations
+
 | JSON Key            | Description                                                        |
 | ------------------- | ------------------------------------------------------------------ |
 | SENTIEON_VERSION    | The version of the Sentieon software package to use                |
@@ -288,7 +331,9 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | RUN_TNSNV           | If using the TNseq pipeline, use TNsnv for variant calling         |
 
 <a name="somatic_options"/>
+
 ### Pipeline options
+
 | JSON Key            | Description                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | OUTPUT_BUCKET       | The Google Cloud Storage Bucket and path prefix to use for the output files                         |
@@ -299,5 +344,7 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
 
 <a name="help"/>
+
 ## Where to get help
+
 Please email support@sentieon.com with any questions.
