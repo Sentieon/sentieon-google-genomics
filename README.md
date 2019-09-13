@@ -274,7 +274,7 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | OUTPUT_BUCKET       | The Google Cloud Storage Bucket and path prefix to use for the output files                         |
 | EMAIL               | An email address to use to obtain an evaluation license for your GCP Project                        |
-| SENTIEON_KEY        | Your Sentieon license key (not applicable for all users)                                            |
+| SENTIEON_KEY        | Your Sentieon license key (only applicable for paying customers)                                    |
 | PROJECT_ID          | Your GCP Project ID to use when running jobs                                                        |
 | PREEMPTIBLE_TRIES   | Number of attempts to run the pipeline using preemptible instances                                  |
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
@@ -338,7 +338,7 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | OUTPUT_BUCKET       | The Google Cloud Storage Bucket and path prefix to use for the output files                         |
 | EMAIL               | An email address to use to obtain an evaluation license for your GCP Project                        |
-| SENTIEON_KEY        | Your Sentieon license key (not applicable for all users)                                            |
+| SENTIEON_KEY        | Your Sentieon license key (only applicable for paying customers)                                    |
 | PROJECT_ID          | Your GCP Project ID to use when running jobs                                                        |
 | PREEMPTIBLE_TRIES   | Number of attempts to run the pipeline using preemptible instances                                  |
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
