@@ -72,7 +72,7 @@ inputParameters:
   defaultValue: None
 - name: PIPELINE
   description: Run DNAseq or DNAscope
-  defaultValue: TNseq
+  defaultValue: SOMATIC
 - name: REALIGN_SITES
   description: Known sites for indel realignment (comma-separated)
   defaultValue: None
@@ -82,3 +82,6 @@ inputParameters:
 - name: CALLING_ARGS
   description: Additional parameters to set during variant calling
   defaultValue: None
+- name: CALLING_ALGO
+  description: The variant calling algorithm to use
+  defaultValue: TNhaplotyper

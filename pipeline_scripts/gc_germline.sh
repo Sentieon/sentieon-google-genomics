@@ -13,14 +13,14 @@ environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
     BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
     NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
     SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL SENTIEON_VERSION CALLING_ARGS \
-    DNASCOPE_MODEL)
+    DNASCOPE_MODEL CALLING_ALGO)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
 readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
     STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY RECALIBRATED_OUTPUT \
-    EMAIL SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL
+    EMAIL SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL CALLING_ALGO
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
@@ -56,7 +56,7 @@ fi
 
 download_intervals
 download_reference
-if [[ $PIPELINE == "DNAscope" && -n "$DNASCOPE_MODEL" ]]; then
+if [[ $CALLING_ALGO == "DNAscope" && -n "$DNASCOPE_MODEL" ]]; then
     curl -L -o ${input_dir}/dnascope.model "$DNASCOPE_MODEL"
 fi
 
@@ -172,7 +172,7 @@ outvcf=$work/hc.vcf.gz
 
 algo=Haplotyper
 extra_vcf_args=""
-if [[ $PIPELINE == "DNAscope" ]]; then
+if [[ $CALLING_ALGO == "DNAscope" ]]; then
     algo="DNAscope"
     if [[ -n "$DNASCOPE_MODEL" ]]; then
         extra_vcf_args="--model ${input_dir}/dnascope.model"
@@ -203,7 +203,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
     run "$cmd" "Haplotyper variant calling"
 
     # DNAscope SV calling
-    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" && -z "$DNASCOPE_MODEL" ]]; then
+    if [[ $CALLING_ALGO == "DNAscope" && -z "$GVCF_OUTPUT" && -z "$DNASCOPE_MODEL" ]]; then
         mv $outvcf $tmpvcf
         mv ${outvcf}.tbi ${tmpvcf}.tbi
         cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo SVSolver -v $tmpvcf $outvcf"
@@ -211,7 +211,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
     fi
 
     # DNAscope model apply
-    if [[ $PIPELINE == "DNAscope" && -z "$GVCF_OUTPUT" && -n "$DNASCOPE_MODEL" ]]; then
+    if [[ $CALLING_ALGO == "DNAscope" && -z "$GVCF_OUTPUT" && -n "$DNASCOPE_MODEL" ]]; then
         mv $outvcf $tmpvcf
         mv ${outvcf}.tbi ${tmpvcf}.tbi
         cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --algo DNAModelApply --model ${input_dir}/dnascope.model -v $tmpvcf $outvcf"

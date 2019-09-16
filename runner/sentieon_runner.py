@@ -15,6 +15,7 @@ from pprint import pprint
 import copy
 import time
 import ssl
+import warnings
 
 from apiclient.discovery import build
 import google.auth
@@ -134,7 +135,9 @@ def main(vargs=None):
     if job_vars["NONPREEMPTIBLE_TRY"]:
         non_preemptible_tries = 1
     preemptible = True if preemptible_tries > 0 else False
-    credentials, project_id = google.auth.default()
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials from Google Cloud SDK")
+        credentials, project_id = google.auth.default()
 
     # Warn with depreciated JSON keys
     if "MIN_RAM_GB" in job_vars or "MIN_CPU" in job_vars:
@@ -142,12 +145,13 @@ def main(vargs=None):
               "Please use 'MACHINE_TYPE' to specify the instance type")
 
     # Grab the yaml for the workflow
-    if (job_vars["PIPELINE"] == "DNA" or
-            job_vars["PIPELINE"] == "DNAscope" or
-            job_vars["PIPELINE"] == "DNAseq"):
+    if job_vars["PIPELINE"] == "GERMLINE":
         pipeline_yaml = germline_yaml
-    else:
+    elif job_vars["PIPELINE"] == "SOMATIC":
         pipeline_yaml = somatic_yaml
+    else:
+        sys.exit("Error: Pipeline '" + job_vars["PIPELINE"] + "'. Valid "
+                 "values are 'GERMLINE' and 'SOMATIC'")
     try:
         pipeline_dict = yaml.load(open(pipeline_yaml))
     except IOError:
@@ -173,9 +177,7 @@ def main(vargs=None):
                  "supplied readgroups")
 
     # Pipeline specific errors
-    if (job_vars["PIPELINE"] == "DNA" or
-            job_vars["PIPELINE"] == "DNAscope" or
-            job_vars["PIPELINE"] == "DNAseq"):
+    if job_vars["PIPELINE"] == "GERMLINE":
         if not job_vars["FQ1"] and not job_vars["BAM"]:
             sys.exit("Error: Please supply either 'FQ1' or 'BAM'")
         if (job_vars["NO_HAPLOTYPER"] and
@@ -185,9 +187,12 @@ def main(vargs=None):
         if job_vars["RECALIBRATED_OUTPUT"] and job_vars["BQSR_SITES"] is None:
             sys.exit("Error: Cannot output a recalibrated BAM file without "
                      "running BQSR. Please supply 'BQSR_SITES'")
-    elif (job_vars["PIPELINE"] == "TN" or
-            job_vars["PIPELINE"] == "TNscope" or
-            job_vars["PIPELINE"] == "TNseq"):
+        valid_algos = ("Haplotyper", "DNAscope")
+        if job_vars["CALLING_ALGO"] not in valid_algos:
+            sys.exit("Error: '" + job_vars["CALLING_ALGO"] + "' is not a "
+                     "valid germline variant calling algo. Please set "
+                     "'CALLING_ALGO' to one of " + str(valid_algos))
+    elif job_vars["PIPELINE"] == "SOMATIC":
         if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
             sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' "
                      "(not both)")
@@ -206,10 +211,11 @@ def main(vargs=None):
                     len(job_vars["TUMOR_READGROUP"].split(',')))):
             sys.exit("Error: The number of tumor fastq files must match the "
                      "number of supplied readgroups")
-
-    else:
-        sys.exit("Error: DNAseq, DNAscope, TNseq, and TNscope are currently "
-                 "supported")
+        valid_algos = ("TNhaplotyper", "TNhaplotyper2", "TNscope", "TNsnv")
+        if job_vars["CALLING_ALGO"] not in valid_algos:
+            sys.exit("Error: '" + job_vars["CALLING_ALGO"] + "' is not a "
+                     "valid somatic variant calling algo. Please set "
+                     "'CALLING_ALGO' to one of " + str(valid_algos))
     if not args.no_check_inputs_exist:
         check_inputs_exist(job_vars, credentials)
 
@@ -244,12 +250,12 @@ def main(vargs=None):
             env_dict[input_var["name"]] = "None"
 
     # Action
-    if (job_vars["PIPELINE"] == "DNA" or
-            job_vars["PIPELINE"] == "DNAscope" or
-            job_vars["PIPELINE"] == "DNAseq"):
+    if job_vars["PIPELINE"] == "GERMLINE":
         _cmd = "/opt/sentieon/gc_germline.sh"
-    else:
+    elif job_vars["PIPELINE"] == "SOMATIC":
         _cmd = "/opt/sentieon/gc_somatic.sh"
+    else:
+        sys.exit("Error: Unknown pipeline " + job_vars["PIPELINE"])
 
     run_action = {
         "name": "run-pipeline",

@@ -60,7 +60,7 @@ inputParameters:
   defaultValue: None
 - name: PIPELINE
   description: Run DNAseq or DNAscope
-  defaultValue: DNA
+  defaultValue: GERMLINE
 - name: SENTIEON_KEY
   description: A Sentieon License Key
   defaultValue: None
@@ -73,3 +73,6 @@ inputParameters:
 - name: CALLING_ARGS
   description: Additional parameters to set during variant calling
   defaultValue: None
+- name: CALLING_ALGO
+  description: The variant calling algorithm to use
+  defaultValue: Haplotyper

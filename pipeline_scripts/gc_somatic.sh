@@ -13,7 +13,7 @@ environmental_variables=(FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
     STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT SENTIEON_KEY \
-    EMAIL SENTIEON_VERSION CALLING_ARGS)
+    EMAIL SENTIEON_VERSION CALLING_ARGS CALLING_ALGO)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
@@ -57,7 +57,7 @@ readonly FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
     STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT EMAIL \
-    SENTIEON_VERSION CALLING_ARGS
+    SENTIEON_VERSION CALLING_ARGS CALLING_ALGO
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
@@ -330,16 +330,8 @@ call_interval=${call_interval:-"${ref}"_nondecoy.bed}
 
 if [[ -z "$NO_VCF" ]]; then
     extra_calling_args=""
-    if [[ "$PIPELINE" == "TNscope" ]]; then
-        algo="TNscope"
-        vcf=$work/tnscope.vcf.gz
-    elif [[ -n "$RUN_TNSNV" ]]; then
-        algo="TNsnv"
-        vcf=$work/tnsnv.vcf.gz
-    else
-        algo="TNhaplotyper"
-        vcf=$work/tnhaplotyper.vcf.gz
-    fi
+    algo="$CALLING_ALGO"
+    vcf="$work"/"$CALLING_ALGO".vcf.gz
 
     cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" $corealigned_bam_str $corealigned_bqsr_str -t $nt -r \"$ref\" --algo $algo $CALLING_ARGS ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp \"$dbsnp\"} $vcf"
 

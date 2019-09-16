@@ -118,11 +118,11 @@ The following table describes the JSON keys in the file:
 | JSON key      | Description                                                                   |
 | ------------- | ----------------------------------------------------------------------------- |
 | FQ1           | The first pair of reads in the input fastq file.                              |
-| FQ2	          | The second pair of reads in the input fastq file.                             |
-| BAM	          | The input BAM file, if applicable.                                            |
-| REF	          | The reference genome. If set, the reference index files are assumed to exist. |
-| OUTPUT_BUCKET	| The bucket and directory used to store the data output from the pipeline.     |
-| ZONES	        | A comma-separated list of GCP zones to use for the worker node.               |
+| FQ2           | The second pair of reads in the input fastq file.                             |
+| BAM           | The input BAM file, if applicable.                                            |
+| REF           | The reference genome. If set, the reference index files are assumed to exist. |
+| OUTPUT_BUCKET | The bucket and directory used to store the data output from the pipeline.     |
+| ZONES         | A comma-separated list of GCP zones to use for the worker node.               |
 | PROJECT_ID    | Your GCP project ID.                                                          |
 | EMAIL         | Your email                                                                    |
 
@@ -184,10 +184,11 @@ The following configuration will run a 30x human genome at a cost of approximate
   "NONPREEMPTIBLE_TRY": true,
   "STREAM_INPUT": "True",
   "DISK_SIZE": 300,
-  "PIPELINE": "DNA"
+  "PIPELINE": "GERMLINE",
+  "CALLING_ALGO": "Haplotyper"
 }
 ```
-The `PIPELINE` key can be changed to `DNAscope` to use the Sentieon DNAscope variant caller for improved variant calling accuracy. For large input files, `DISK_SIZE` should be increased.
+The `CALLING_ALGO` key can be changed to `DNAscope` to use the Sentieon DNAscope variant caller for improved variant calling accuracy. For large input files, `DISK_SIZE` should be increased.
 
 
 <a name="somatic"/>
@@ -212,11 +213,11 @@ The following configuration will run a paired 60-30x human genome at a cost of a
   "NONPREEMPTIBLE_TRY": true,
   "STREAM_INPUT": "True",
   "DISK_SIZE": 300,
-  "PIPELINE": "TNseq",
-  "RUN_TNSNV": null,
+  "PIPELINE": "SOMATIC",
+  "CALLING_ALGO": "TNhaplotyper"
 }
 ```
-The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant caller. The `PIPELINE` key can be changed to `TNscope` to use the Sentieon TNscope variant caller for improved variant calling accuracy. For large input files, `DISK_SIZE` should be increased.
+The `CALLING_ALGO` key key can be change to `TNsnv`, `TNhaplotyper`, `TNhaplotyper2`, or `TNscope` to use Sentieon's TNsnv, TNhaplotyper, TNhaplotyper2 or TNscope variant callers, respectively. For large input files, `DISK_SIZE` should be increased.
 
 <a name="configurations_germline"/>
 
@@ -253,18 +254,19 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 
 ### Pipeline configurations
 
-| JSON Key            | Description                                                        |
-| ------------------- | ------------------------------------------------------------------ |
-| SENTIEON_VERSION    | The version of the Sentieon software package to use                |
-| DEDUP               | Type of duplicate removal to run (nodup, markdup or rmdup)         |
-| NO_METRICS          | Skip running metrics collection                                    |
-| NO_BAM_OUTPUT       | Skip outputting a preprocessed BAM file                            |
-| NO_HAPLOTYPER       | Skip variant calling                                               |
-| GVCF_OUTPUT         | Output variant calls in gVCF format rather than VCF format         |
-| STREAM_INPUT        | Stream the input FASTQ files directly from Google Cloud Storage    |
-| RECALIBRATED_OUTPUT | Apply BQSR to the output preprocessed alignments (not recommended) |
-| CALLING_ARGS        | A string of additional arguments to pass to the variant caller     |
-| PIPELINE            | The pipeline to run (DNAseq or DNAscope)                           |
+| JSON Key            | Description                                                             |
+| ------------------- | ----------------------------------------------------------------------- |
+| SENTIEON_VERSION    | The version of the Sentieon software package to use                     |
+| DEDUP               | Type of duplicate removal to run (nodup, markdup or rmdup)              |
+| NO_METRICS          | Skip running metrics collection                                         |
+| NO_BAM_OUTPUT       | Skip outputting a preprocessed BAM file                                 |
+| NO_HAPLOTYPER       | Skip variant calling                                                    |
+| GVCF_OUTPUT         | Output variant calls in gVCF format rather than VCF format              |
+| STREAM_INPUT        | Stream the input FASTQ files directly from Google Cloud Storage         |
+| RECALIBRATED_OUTPUT | Apply BQSR to the output preprocessed alignments (not recommended)      |
+| CALLING_ARGS        | A string of additional arguments to pass to the variant caller          |
+| PIPELINE            | Set to `GERMLINE` to run the germline variant calling pipeline          |
+| CALLING_ALGO        | The Sentieon variant calling algo to run. Either Haplotyper or DNAscope |
 
 <a name="germline_options"/>
 
@@ -317,18 +319,19 @@ The `RUN_TNSNV` key can be change to `True` to use Sentieon's TNsnv variant call
 
 ### Pipeline configurations
 
-| JSON Key            | Description                                                        |
-| ------------------- | ------------------------------------------------------------------ |
-| SENTIEON_VERSION    | The version of the Sentieon software package to use                |
-| DEDUP               | Type of duplicate removal to run (nodup, markdup or rmdup)         |
-| NO_METRICS          | Skip running metrics collection                                    |
-| NO_BAM_OUTPUT       | Skip outputting a preprocessed BAM file                            |
-| NO_VCF              | Skip variant calling                                               |
-| STREAM_INPUT        | Stream the input FASTQ files directly from Google Cloud Storage    |
-| RECALIBRATED_OUTPUT | Apply BQSR to the output preprocessed alignments (not recommended) |
-| CALLING_ARGS        | A string of additional arguments to pass to the variant caller     |
-| PIPELINE            | The pipeline to run (TNseq or TNscope)                             |
-| RUN_TNSNV           | If using the TNseq pipeline, use TNsnv for variant calling         |
+| JSON Key            | Description                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| SENTIEON_VERSION    | The version of the Sentieon software package to use                                                     |
+| DEDUP               | Type of duplicate removal to run (nodup, markdup or rmdup)                                              |
+| NO_METRICS          | Skip running metrics collection                                                                         |
+| NO_BAM_OUTPUT       | Skip outputting a preprocessed BAM file                                                                 |
+| NO_VCF              | Skip variant calling                                                                                    |
+| STREAM_INPUT        | Stream the input FASTQ files directly from Google Cloud Storage                                         |
+| RECALIBRATED_OUTPUT | Apply BQSR to the output preprocessed alignments (not recommended)                                      |
+| CALLING_ARGS        | A string of additional arguments to pass to the variant caller                                          |
+| PIPELINE            | Set to `SOMATIC` to run the somatic variant calling pipeline                                            |
+| RUN_TNSNV           | If using the TNseq pipeline, use TNsnv for variant calling                                              |
+| CALLING_ALGO        | The Sentieon somatic variant calling algo to run. Either TNsnv, TNhaplotyper, TNhaplotyper2, or TNscope |
 
 <a name="somatic_options"/>
 
