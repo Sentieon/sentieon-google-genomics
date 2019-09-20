@@ -105,7 +105,7 @@ fi
 # ******************************************
 output_ext="bam"
 if [[ -n "$FQ1" ]]; then
-    bwa_mem_align "normal_" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
+    bwa_mem_align "normal_" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "-M -K 10000000" "$util_sort_xargs" "false"
 fi
 
 local_bams_str=""
@@ -114,7 +114,7 @@ for bam in "${local_bams[@]}"; do
 done
 
 if [[ -n "$TUMOR_FQ1" ]]; then
-    bwa_mem_align "tumor_" "$TUMOR_FQ1" "$TUMOR_FQ2" "$TUMOR_READGROUP" tumor_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
+    bwa_mem_align "tumor_" "$TUMOR_FQ1" "$TUMOR_FQ2" "$TUMOR_READGROUP" tumor_bams $output_ext "-M -K 10000000" "$util_sort_xargs" "false"
 fi
 
 tumor_bams_str=""
@@ -150,8 +150,8 @@ fi
 # ******************************************
 output_ext="bam"
 
-run_mark_duplicates "normal_" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "${local_bams[@]}"
-run_mark_duplicates "tumor_" "$DEDUP" tumor_metrics_cmd1 "$tumor_bams_str" tumor_dedup_bam_str tumor_dedup_bams "$dedup_xargs" $output_ext "${tumor_bams[@]}"
+run_mark_duplicates "normal_" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "false" "${local_bams[@]}"
+run_mark_duplicates "tumor_" "$DEDUP" tumor_metrics_cmd1 "$tumor_bams_str" tumor_dedup_bam_str tumor_dedup_bams "$dedup_xargs" $output_ext "false" "${tumor_bams[@]}"
 
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then

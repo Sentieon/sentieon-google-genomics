@@ -28,6 +28,13 @@ RUN apt-get update && \
     ./configure && \
     make install
 
+# Install samblaster
+RUN curl -Lo samblaster-v.0.1.24.tar.gz https://github.com/GregoryFaust/samblaster/releases/download/v.0.1.24/samblaster-v.0.1.24.tar.gz && \
+  tar -xf samblaster-v.0.1.24.tar.gz && \
+  cd samblaster-v.0.1.24 && \
+  make && \
+  cp samblaster /usr/local/bin/
+
 # Install metadata script dependencies
 RUN pip install requests urllib3
 
@@ -38,6 +45,7 @@ LABEL container.base.image="python:2.7.16-slim-stretch"
 COPY --from=downloader /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
 COPY --from=downloader /usr/local/lib/python2.7/site-packages /usr/local/lib/python2.7/site-packages
 COPY --from=downloader /usr/local/bin/samtools /usr/local/bin
+COPY --from=downloader /usr/local/bin/samblaster /usr/local/bin
 
 CMD ["/bin/bash"]
 
@@ -49,4 +57,4 @@ RUN apt-get update && apt-get install -y \
         iputils-ping && \
     ln -s ../lib/google-cloud-sdk/bin/gsutil /usr/bin/gsutil
 
-ADD gc_functions.sh gc_somatic.sh gc_germline.sh gen_credentials.py /opt/sentieon/
+ADD gc_functions.sh gc_somatic.sh gc_germline.sh gc_ccdg_germline.sh gen_credentials.py /opt/sentieon/

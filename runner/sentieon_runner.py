@@ -23,6 +23,7 @@ import google.auth
 script_dir = os.path.dirname(os.path.realpath(__file__))
 germline_yaml = script_dir + "/germline.yaml"
 somatic_yaml = script_dir + "/somatic.yaml"
+ccdg_yaml = script_dir + "/ccdg.yaml"
 default_json = script_dir + "/runner_default.json"
 target_url_base = ("https://www.googleapis.com/compute/v1/projects/{project}/"
                    "zones/{zone}/instances/{instance}")
@@ -145,12 +146,15 @@ def main(vargs=None):
               "Please use 'MACHINE_TYPE' to specify the instance type")
 
     # Grab the yaml for the workflow
-    if job_vars["PIPELINE"] == "GERMLINE":
+    pipeline = job_vars["PIPELINE"]
+    if pipeline == "GERMLINE":
         pipeline_yaml = germline_yaml
-    elif job_vars["PIPELINE"] == "SOMATIC":
+    elif pipeline == "SOMATIC":
         pipeline_yaml = somatic_yaml
+    elif pipeline == "CCDG":
+        pipeline_yaml = ccdg_yaml
     else:
-        sys.exit("Error: Pipeline '" + job_vars["PIPELINE"] + "'. Valid "
+        sys.exit("Error: Pipeline '" + pipeline + "'. Valid "
                  "values are 'GERMLINE' and 'SOMATIC'")
     try:
         pipeline_dict = yaml.load(open(pipeline_yaml))
@@ -177,7 +181,7 @@ def main(vargs=None):
                  "supplied readgroups")
 
     # Pipeline specific errors
-    if job_vars["PIPELINE"] == "GERMLINE":
+    if pipeline == "GERMLINE" or pipeline == "CCDG":
         if not job_vars["FQ1"] and not job_vars["BAM"]:
             sys.exit("Error: Please supply either 'FQ1' or 'BAM'")
         if (job_vars["NO_HAPLOTYPER"] and
@@ -192,7 +196,12 @@ def main(vargs=None):
             sys.exit("Error: '" + job_vars["CALLING_ALGO"] + "' is not a "
                      "valid germline variant calling algo. Please set "
                      "'CALLING_ALGO' to one of " + str(valid_algos))
-    elif job_vars["PIPELINE"] == "SOMATIC":
+        # Additional CCDG checks
+        if pipeline == "CCDG":
+            if job_vars["BQSR_SITES"] is None:
+                sys.exit("Error: The CCDG pipeline requires known sites for "
+                         "BQSR. Please supply 'BQSR_SITES'")
+    elif pipeline == "SOMATIC":
         if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
             sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' "
                      "(not both)")
@@ -230,12 +239,9 @@ def main(vargs=None):
         "preemptible": preemptible,
         "disks": [disk],
         "serviceAccount": {"scopes": [
-            "https://www.googleapis.com/auth/cloud-platform"]}
-
+            "https://www.googleapis.com/auth/cloud-platform"]},
+        "cpuPlatform": job_vars["CPU_PLATFORM"]
     }
-    if job_vars["MACHINE_TYPE"] == "n1-highcpu-96":
-        vm_dict["cpuPlatform"] = "Intel Skylake"
-
     resources_dict = {
         "projectId": job_vars["PROJECT_ID"],
         "zones": job_vars["ZONES"].split(',') if job_vars["ZONES"] else [],
@@ -250,12 +256,14 @@ def main(vargs=None):
             env_dict[input_var["name"]] = "None"
 
     # Action
-    if job_vars["PIPELINE"] == "GERMLINE":
+    if pipeline == "GERMLINE":
         _cmd = "/opt/sentieon/gc_germline.sh"
-    elif job_vars["PIPELINE"] == "SOMATIC":
+    elif pipeline == "SOMATIC":
         _cmd = "/opt/sentieon/gc_somatic.sh"
+    elif pipeline == "CCDG":
+        _cmd = "/opt/sentieon/gc_ccdg_germline.sh"
     else:
-        sys.exit("Error: Unknown pipeline " + job_vars["PIPELINE"])
+        sys.exit("Error: Unknown pipeline " + pipeline)
 
     run_action = {
         "name": "run-pipeline",
@@ -320,7 +328,7 @@ def main(vargs=None):
                 instance = startup_event["details"]["instance"]
                 zone = startup_event["details"]["zone"]
                 url = target_url_base.format(**locals())
-                time.sleep(30)  # Don't poll too quickly
+                time.sleep(300)  # It may take some time to set the preemption operation
                 compute_ops = (
                         compute_service.zoneOperations().list(
                             project=project, zone=zone, filter=(

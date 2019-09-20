@@ -1,0 +1,12 @@
+{
+  "FQ1": "gs://your-bucket/wgs_sample1_1.fastq.gz",
+  "FQ2": "gs://your-bucket/wgs_sample1_2.fastq.gz",
+  "REF": "gs://sentieon-test/pipeline_test/reference/hg38/GRCh38_full_analysis_set_plus_decoy_hla.fa",
+  "OUTPUT_BUCKET": "YOUR_BUCKET_HERE",
+  "BQSR_SITES": "gs://sentieon-test/pipeline_test/reference/hg38/Homo_sapiens_assembly38.dbsnp138.vcf.gz,gs://sentieon-test/pipeline_test/reference/hg38/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz,gs://sentieon-test/pipeline_test/reference/hg38/Homo_sapiens_assembly38.known_indels.vcf.gz",
+  "DBSNP": "gs://sentieon-test/pipeline_test/reference/hg38/Homo_sapiens_assembly38.dbsnp138.vcf.gz",
+  "PREEMPTIBLE_TRIES": "2",
+  "STREAM_INPUT": "True",
+  "ZONES": "us-central1-a,us-central1-b,us-central1-c,us-central1-f",
+  "PROJECT_ID": "YOUR_PROJECT_HERE"
+}

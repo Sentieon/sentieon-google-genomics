@@ -256,6 +256,7 @@ bwa_mem_align()
     fun_output_ext=$1; shift
     fun_bwa_xargs=$1; shift
     fun_util_sort_xargs=$1; shift
+    fun_run_samblaster=$1; shift
     fun_bam_dest=()
 
     IFS=',' read -r -a fun_fq1 <<< "$fun_fq1"
@@ -272,7 +273,7 @@ bwa_mem_align()
         fq1=${fun_fq1[$i]}
         fq2=${fun_fq2[$i]}
         readgroup=${fun_rgs[$i]}
-        bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -K 10000000 -M -R \"${readgroup}\" -t $nt \"$ref\" "
+        bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -R \"${readgroup}\" -t $nt \"$ref\" "
         if [[ -n "$STREAM_INPUT" ]]; then
             bwa_cmd="$bwa_cmd <(gsutil cp $fq1 -) "
             if [[ -n "$fq2" ]]; then
@@ -290,7 +291,11 @@ bwa_mem_align()
         fi
         local_bam=$work/${fun_base}sorted_bam-${i}.${fun_output_ext}
         bwa_log=$work/${fun_base}_bwa.log
-        bwa_cmd="$bwa_cmd 2>$bwa_log | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
+        bwa_cmd="$bwa_cmd 2>$bwa_log"
+        if [[ "$fun_run_samblaster" == "true" ]]; then
+            bwa_cmd="$bwa_cmd | samblaster --addMateTags -a"
+        fi
+        bwa_cmd="$bwa_cmd | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
         run "$bwa_cmd" "BWA-mem and sorting"
         gsutil cp $bwa_log "$out_bam"
         fun_bam_dest+=($local_bam)
@@ -344,6 +349,7 @@ run_mark_duplicates() {
     fun_bams_dest=$1; shift
     fun_dedup_xargs=$1; shift
     fun_output_ext=$1; shift
+    fun_two_pass=$1; shift
     fun_local_bams=("$@")
 
     if [[ "$fun_dedup" == "nodup" || (-z "$fun_bam_str" || -z "${fun_local_bams[@]}") ]]; then
@@ -358,12 +364,21 @@ run_mark_duplicates() {
         fi
         run "$cmd" "Locus collector"
 
+        # Dedup pre-pass
+        if [[ "$fun_two_pass" == "true" ]]; then
+            cmd="$release_dir/bin/sentieon driver --traverse_param=200000/10000 $fun_bam_str -t $nt -r \"$ref\" --algo Dedup --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt --output_dup_read_name $work/${fun_base}dedup_qname.txt.gz"
+            run "$cmd" "Dedup pre-pass"
+            fun_dedup_xargs="${fun_dedup_xargs} --dup_read_name $work/${fun_base}dedup_qname.txt.gz"
+        else
+            fun_dedup_xargs="${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt"
+        fi
+
         # Dedup
         dedup_bam=$work/${fun_base}dedup.${fun_output_ext}
         if [[ "$fun_dedup" != "markdup" ]]; then
-            fun_dedup_xargs+=" --rmdup "
+            fun_dedup_xargs="${fun_dedup_xargs} --rmdup "
         fi
-        cmd="$release_dir/bin/sentieon driver -r \"$ref\" --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} --score_info $work/${fun_base}score.txt --metrics $metrics_dir/${fun_base}dedup_metrics.txt $dedup_bam"
+        cmd="$release_dir/bin/sentieon driver -r \"$ref\" --traverse_param=200000/10000 $fun_bam_str -t $nt --algo Dedup ${fun_dedup_xargs} $dedup_bam"
         run "$cmd" $fun_dedup
         eval "${fun_bam_str_dest}=\" -i $dedup_bam \""
         eval "${fun_bams_dest}=(${dedup_bam})"

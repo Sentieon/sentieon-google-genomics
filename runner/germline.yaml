@@ -59,7 +59,7 @@ inputParameters:
   description: Stream fastq input directly from storage
   defaultValue: None
 - name: PIPELINE
-  description: Run DNAseq or DNAscope
+  description: Run germline variant calling
   defaultValue: GERMLINE
 - name: SENTIEON_KEY
   description: A Sentieon License Key

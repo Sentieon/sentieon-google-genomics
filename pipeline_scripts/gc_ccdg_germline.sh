@@ -9,18 +9,17 @@ nt=$(nproc)
 source $BASEDIR/gc_functions.sh
 
 # Set "None" variables to an empty string
-environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP \
-    BQSR_SITES DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT \
-    NO_HAPLOTYPER GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT \
-    SENTIEON_KEY RECALIBRATED_OUTPUT EMAIL SENTIEON_VERSION CALLING_ARGS \
-    DNASCOPE_MODEL CALLING_ALGO)
+environmental_variables=(FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP BQSR_SITES \
+    DBSNP INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER \
+    GVCF_OUTPUT STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY EMAIL \
+    SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL CALLING_ALGO)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
-readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP DEDUP BQSR_SITES DBSNP \
-    INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
-    STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY RECALIBRATED_OUTPUT \
-    EMAIL SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL CALLING_ALGO
+readonly FQ1 FQ2 BAM OUTPUT_BUCKET REF READGROUP BQSR_SITES DBSNP INTERVAL \
+    INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_HAPLOTYPER GVCF_OUTPUT \
+    STREAM_INPUT PIPELINE OUTPUT_CRAM_FORMAT SENTIEON_KEY EMAIL \
+    SENTIEON_VERSION CALLING_ARGS DNASCOPE_MODEL CALLING_ALGO
 
 release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
@@ -76,7 +75,7 @@ fi
 # ******************************************
 output_ext="bam"
 if [[ -n $FQ1 ]]; then
-    bwa_mem_align "" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "-M -K 10000000" "$util_sort_xargs" "false"
+    bwa_mem_align "" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "-K 100000000 -Y" "$util_sort_xargs" "true"
 fi
 
 local_bams_str=""
@@ -99,63 +98,54 @@ fi
 # ******************************************
 output_ext="bam"
 
-run_mark_duplicates "" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "false" "${local_bams[@]}"
-if [[ "$DEDUP" != "nodup" ]]; then
-    if [[ -z "$NO_METRICS" ]]; then
-        (gsutil cp $metrics_dir/dedup_metrics.txt "$out_metrics" &&
-            rm $metrics_dir/dedup_metrics.txt) &
-        upload_dedup_pid=$!
-    else
-        rm $metrics_dir/dedup_metrics.txt &
+run_mark_duplicates "" "markdup" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "true" "${local_bams[@]}"
+if [[ -z "$NO_METRICS" ]]; then
+    (gsutil cp $metrics_dir/dedup_metrics.txt "$out_metrics" &&
+        rm $metrics_dir/dedup_metrics.txt) &
+    upload_dedup_pid=$!
+else
+    rm $metrics_dir/dedup_metrics.txt &
+fi
+for bam in "${local_bams[@]}"; do
+    if [[ -f "$bam" ]]; then
+        rm "$bam" &
     fi
-    for bam in "${local_bams[@]}"; do
-        if [[ -f "$bam" ]]; then
-            rm "$bam" &
-        fi
-        if [[ -f "${bam}".bai ]]; then
-            rm "${bam}".bai &
-        fi
-        if [[ -f "${bam}".crai ]]; then
-            rm "${bam}".crai &
-        fi
-    done
-fi
-
-if [[ -z "$NO_BAM_OUTPUT" && (-z "$bqsr_sites" || -z "$RECALIBRATED_OUTPUT" ) ]]; then
-    upload_list=""
-    for bam in "${dedup_bams[@]}"; do
-        upload_list+=" \"$bam\" "
-        if [[ -f "${bam}.bai" ]]; then
-            upload_list+=" \"${bam}.bai\" "
-        elif [[ -f "${bam}.crai" ]]; then
-            upload_list+=" \"${bam}.crai\" "
-        fi
-    done
-    eval gsutil cp $upload_list "$out_bam" &
-    upload_deduped_pid=$!
-fi
+    if [[ -f "${bam}".bai ]]; then
+        rm "${bam}".bai &
+    fi
+    if [[ -f "${bam}".crai ]]; then
+        rm "${bam}".crai &
+    fi
+done
 
 upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 
 # ******************************************
 # 4. Base recalibration
 # ******************************************
-run_bqsr "" "$dedup_bam_str" metrics_cmd1 bqsr_cmd2 bqsr_cmd3 bqsr_cmd4 bqsr_table bqsr_plot
+bqsr_intervals="chr1,chr2,chr3,chr4,chr5,chr6,chr7,chr8,chr9,chr10,chr11,chr12,chr13,chr14,chr15,chr16,chr17,chr18,chr19,chr20,chr21,chr22"
+cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" --interval $bqsr_intervals $dedup_bam_str --algo QualCal $bqsr_sites $work/recal_data.table"
+run "$cmd" "BQSR"
 
-if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -n "$RECALIBRATED_OUTPUT" ]]; then
-    outrecal=$work/recalibrated.bam
-    cmd="$release_dir/bin/sentieon driver $dedup_bam_str -q $bqsr_table --algo ReadWriter $outrecal"
-    (run "$cmd" "ReadWriter";
-        gsutil cp $outrecal ${outrecal}.bai "$out_bam") &
+cmd="$release_dir/bin/sentieon driver -t $nt -r \"$ref\" $dedup_bam_str --read_filter QualCalFilter,table=$work/recal_data.table,prior=-1.0,indel=false,levels=10/20/30,min_qual=6 --algo ReadWriter --cram_write_options version=3.0,compressor=gzip+rans $work/recalibrated.cram"
+run "$cmd" "ReadWriter"
+
+for bam in "${dedup_bams[@]}"; do
+    if [[ -f "$bam" ]]; then
+        rm "$bam" &
+    fi
+    if [[ -f "${bam}".bai ]]; then
+        rm "$bam".bai &
+    fi
+    if [[ -f "${bam}".crai ]]; then
+        rm "${bam}".crai &
+    fi
+done
+
+if [[ -z "$NO_BAM_OUTPUT" ]]; then
+    gsutil cp $work/recalibrated.cram $work/recalibrated.cram.crai "$out_bam" &
     upload_recal_pid=$!
 fi
-
-if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -z "$RECALIBRATED_OUTPUT" ]]; then
-    gsutil cp $bqsr_table "$out_bam" &
-    upload_bqsr_pid=$!
-fi
-
-upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 
 
 # ******************************************
@@ -186,19 +176,11 @@ fi
 
 if [[ -z $NO_HAPLOTYPER ]]; then
     if [[ -n "$GVCF_OUTPUT" ]]; then
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $CALLING_ARGS ${dbsnp:+-d \"$dbsnp\"} --emit_mode gvcf ${outgvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" -i $work/recalibrated.cram --algo $algo $CALLING_ARGS ${dbsnp:+-d \"$dbsnp\"} --emit_mode gvcf ${outgvcf}"
         outfile=$outgvcf
     else
-        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table} --algo $algo $CALLING_ARGS $extra_vcf_args ${dbsnp:+-d \"$dbsnp\"} ${outvcf}"
+        cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" -i $work/recalibrated.cram --algo $algo $CALLING_ARGS $extra_vcf_args ${dbsnp:+-d \"$dbsnp\"} ${outvcf}"
         outfile=$outvcf
-    fi
-    if [[ -n $metrics_cmd1 ]]; then
-        cmd+=" $metrics_cmd1"
-        metrics_cmd1=
-    fi
-    if [[ -n $bqsr_cmd2 ]]; then
-        cmd+=" $bqsr_cmd2"
-        bqsr_cmd2=
     fi
     run "$cmd" "Variant calling"
 
@@ -220,28 +202,6 @@ if [[ -z $NO_HAPLOTYPER ]]; then
 
     gsutil cp $outfile ${outfile}.tbi "$out_variants" &
     upload_vcf_pid=$!
-fi
-
-if [[ -n $metrics_cmd1 ]]; then
-    cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r \"$ref\" $dedup_bam_str ${bqsr_table:+-q $bqsr_table}"
-    cmd+=" $metrics_cmd1"
-    run "$cmd" "Metrics collection"
-fi
-
-upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
-
-
-if [[ -n $bqsr_cmd2 ]]; then
-    cmd="$release_dir/bin/sentieon driver ${interval:+--interval \"$interval\"} -t $nt -r \"$ref\" $dedup_bam_str -q $bqsr_table $bqsr_cmd2"
-    bqsr_cmd2=
-    run "$cmd" "BQSR Post"
-fi
-
-if [[ -n $bqsr_cmd3 ]]; then
-    run "$bqsr_cmd3" "BQSR CSV"
-    run "$bqsr_cmd4" "BQSR plot"
-    gsutil cp $plot "$out_metrics" &
-    upload_bqsr_metrics_pid=$!
 fi
 
 # Wait for all running uploads to finish
