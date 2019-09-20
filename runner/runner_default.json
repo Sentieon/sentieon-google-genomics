@@ -30,7 +30,7 @@
   "ZONES": null,
   "DISK_SIZE": 300,
   "MACHINE_TYPE": "n1-highcpu-64",
-  "CPU_PLATFORM": "Intel Sandy Bridge",
+  "CPU_PLATFORM": "Intel Broadwell",
   "PROJECT_ID": null,
   "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.2",
   "CALLING_ARGS": null,

@@ -157,7 +157,7 @@ def main(vargs=None):
         sys.exit("Error: Pipeline '" + pipeline + "'. Valid "
                  "values are 'GERMLINE' and 'SOMATIC'")
     try:
-        pipeline_dict = yaml.load(open(pipeline_yaml))
+        pipeline_dict = yaml.safe_load(open(pipeline_yaml))
     except IOError:
         sys.exit("Error. No yaml \"{}\" found.".format(pipeline_yaml))
 
@@ -318,13 +318,13 @@ def main(vargs=None):
                     sys.stdout.flush()
                     sys.exit(2)
 
-                startup_event = filter(
+                startup_event = list(filter(
                         lambda x: (
                             "details" in x and
                             "@type" in x["details"] and
                             x["details"]["@type"] == "type.googleapis.com/"
                             "google.genomics.v2alpha1.WorkerAssignedEvent"),
-                        operation["metadata"]["events"])[0]
+                        operation["metadata"]["events"]))[0]
                 instance = startup_event["details"]["instance"]
                 zone = startup_event["details"]["zone"]
                 url = target_url_base.format(**locals())
