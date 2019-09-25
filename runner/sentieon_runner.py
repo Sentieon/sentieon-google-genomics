@@ -11,14 +11,18 @@ import json
 import argparse
 import os
 import sys
-from pprint import pprint
 import copy
 import time
 import ssl
 import warnings
+import logging
+import random
+import google.auth
+import googleapiclient.errors
 
 from apiclient.discovery import build
-import google.auth
+from pprint import pformat
+from googleapiclient.errors import HttpError
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 germline_yaml = script_dir + "/germline.yaml"
@@ -43,7 +47,11 @@ def cloud_storage_exists(client, gs_path):
 
 def check_inputs_exist(job_vars, credentials):
     from google.cloud import storage
-    client = storage.Client(credentials=credentials)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Your application has authenticated "
+                                "using end user credentials from Google Cloud "
+                                "SDK")
+        client = storage.Client(credentials=credentials)
 
     # The DBSNP, BQSR and Realign sites files
     sites_files = []
@@ -54,16 +62,19 @@ def check_inputs_exist(job_vars, credentials):
     sites_files += [job_vars["DBSNP"]] if job_vars["DBSNP"] else []
     for sites_file in sites_files:
         if not cloud_storage_exists(client, sites_file):
-            sys.exit("Error: Could not find supplied file "
-                     "{}".format(sites_file))
+            logging.error("Could not find supplied file "
+                          "{}".format(sites_file))
+            sys.exit(-1)
         if sites_file.endswith("vcf.gz"):
             if not cloud_storage_exists(client, sites_file + ".tbi"):
-                sys.exit("Error: Could not find index for file "
-                         "{}".format(sites_file))
+                logging.error("Could not find index for file "
+                              "{}".format(sites_file))
+                sys.exit(-1)
         else:
             if not cloud_storage_exists(client, sites_file + ".idx"):
-                sys.exit("Error: Could not find index for file "
-                         "{}".format(sites_file))
+                logging.error("Could not find index for file "
+                              "{}".format(sites_file))
+                sys.exit(-1)
 
     # The data input files
     gs_split_files = (
@@ -79,30 +90,36 @@ def check_inputs_exist(job_vars, credentials):
             continue
         for input_file in split_file.split(','):
             if not cloud_storage_exists(client, input_file):
-                sys.exit("Error: Could not find the supplied file "
-                         "{}".format(input_file))
+                logging.error("Could not find the supplied file "
+                              "{}".format(input_file))
+                sys.exit(-1)
     for input_file in gs_files:
         if not cloud_storage_exists(client, input_file):
-            sys.exit("Error: Could not file the supplied file "
-                     "{}".format(input_file))
+            logging.error("Could not file the supplied file "
+                          "{}".format(input_file))
+            sys.exit(-1)
 
     # All reference files
     ref = job_vars["REF"]
     ref_base = ref[:-3] if ref.endswith(".fa") else ref[:-6]
     if not cloud_storage_exists(client, ref):
-        sys.exit("Error: Reference file not found")
+        logging.error("Reference file not found")
+        sys.exit(-1)
     if not cloud_storage_exists(client, ref + ".fai"):
-        sys.exit("Error: Reference fai index not found")
+        logging.error("Reference fai index not found")
+        sys.exit(-1)
     if (not cloud_storage_exists(client, ref + ".dict") and
             not cloud_storage_exists(client, ref_base + ".dict")):
-        sys.exit("Error: Reference dict index not found")
+        logging.error("Reference dict index not found")
+        sys.exit(-1)
     # FQ specific
     if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:
         for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
             if (not cloud_storage_exists(client, ref + suffix) and
                     not cloud_storage_exists(client, ref + ".64" + suffix)):
-                sys.exit("Error: Reference BWA index {} not "
-                         "found".format(suffix))
+                logging.error("Reference BWA index {} not "
+                              "found".format(suffix))
+                sys.exit(-1)
     # BAM specific
     bam_vars = ("BAM", "TUMOR_BAM")
     for bam_type in bam_vars:
@@ -110,12 +127,18 @@ def check_inputs_exist(job_vars, credentials):
             for bam in job_vars[bam_type].split(','):
                 if (not cloud_storage_exists(client, bam + ".bai") and
                         not cloud_storage_exists(client, bam + "bai")):
-                    sys.exit("Error: BAM supplied but BAI not found")
+                    logging.error("BAM supplied but BAI not found")
+                    sys.exit(-1)
 
 
 def main(vargs=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("pipeline_config", help="The json configuration file")
+    parser.add_argument(
+            "--verbose",
+            "-v",
+            action="count",
+            help="Increase the runner verbosity")
     parser.add_argument(
             "--no_check_inputs_exist",
             action="store_true",
@@ -129,6 +152,19 @@ def main(vargs=None):
     args = parser.parse_args()
     polling_interval = args.polling_interval
 
+    logging.getLogger("googleapiclient."
+                      "discovery_cache").setLevel(logging.ERROR)
+    log_format = "%(filename)s::%(funcName)s [%(levelname)s] %(message)s"
+    if not hasattr(args, "verbose") or args.verbose is None:
+        log_level = logging.WARNING
+    elif args.verbose == 1:
+        log_level = logging.INFO
+    elif args.verbose >= 2:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.WARNING
+    logging.basicConfig(level=log_level, format=log_format)
+
     # Grab input arguments from the json file
     job_vars = json.load(open(default_json))
     job_vars.update(json.load(open(args.pipeline_config)))
@@ -137,13 +173,16 @@ def main(vargs=None):
         non_preemptible_tries = 1
     preemptible = True if preemptible_tries > 0 else False
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", "Your application has authenticated using end user credentials from Google Cloud SDK")
+        warnings.filterwarnings("ignore", "Your application has authenticated "
+                                "using end user credentials from Google Cloud "
+                                "SDK")
         credentials, project_id = google.auth.default()
 
     # Warn with depreciated JSON keys
     if "MIN_RAM_GB" in job_vars or "MIN_CPU" in job_vars:
-        print("Warning: 'MIN_RAM_GB' and 'MIN_CPU' are now ignored. "
-              "Please use 'MACHINE_TYPE' to specify the instance type")
+        logging.warning("'MIN_RAM_GB' and 'MIN_CPU' are now ignored. "
+                        "Please use 'MACHINE_TYPE' to specify the instance "
+                        "type")
 
     # Grab the yaml for the workflow
     pipeline = job_vars["PIPELINE"]
@@ -154,12 +193,14 @@ def main(vargs=None):
     elif pipeline == "CCDG":
         pipeline_yaml = ccdg_yaml
     else:
-        sys.exit("Error: Pipeline '" + pipeline + "'. Valid "
-                 "values are 'GERMLINE' and 'SOMATIC'")
+        logging.error("Pipeline '" + pipeline + "'. Valid "
+                      "values are 'GERMLINE' and 'SOMATIC'")
+        sys.exit(-1)
     try:
         pipeline_dict = yaml.safe_load(open(pipeline_yaml))
     except IOError:
-        sys.exit("Error. No yaml \"{}\" found.".format(pipeline_yaml))
+        logging.error("No yaml \"{}\" found.".format(pipeline_yaml))
+        sys.exit(-1)
 
     # Try not to create nearly empty directories
     while job_vars["OUTPUT_BUCKET"].endswith('/'):
@@ -167,64 +208,79 @@ def main(vargs=None):
 
     # Some basic error checking to fail early
     if not job_vars["PROJECT_ID"]:
-        sys.exit("Error: Please supply a PROJECT_ID")
+        logging.error("Please supply a PROJECT_ID")
+        sys.exit(-1)
 
     # Shared errors
     if job_vars["FQ1"] and job_vars["BAM"]:
-        sys.exit("Error: Please supply either 'FQ1' or 'BAM' (not both)")
+        logging.error("Please supply either 'FQ1' or 'BAM' (not both)")
+        sys.exit(-1)
     if job_vars["INTERVAL"] and job_vars["INTERVAL_FILE"]:
-        sys.exit("Error: Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
+        logging.error("Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
+        sys.exit(-1)
     if ((job_vars["FQ1"] and job_vars["READGROUP"]) and
             (len(job_vars["FQ1"].split(',')) !=
              len(job_vars["READGROUP"].split(',')))):
-        sys.exit("Error: The number of fastq files must match the number of "
-                 "supplied readgroups")
+        logging.error("The number of fastq files must match the number of "
+                      "supplied readgroups")
+        sys.exit(-1)
 
     # Pipeline specific errors
     if pipeline == "GERMLINE" or pipeline == "CCDG":
         if not job_vars["FQ1"] and not job_vars["BAM"]:
-            sys.exit("Error: Please supply either 'FQ1' or 'BAM'")
+            logging.error("Please supply either 'FQ1' or 'BAM'")
+            sys.exit(-1)
         if (job_vars["NO_HAPLOTYPER"] and
                 job_vars["NO_METRICS"] and
                 job_vars["NO_BAM_OUTPUT"]):
-            sys.exit("Error: No output files requested")
+            logging.error("No output files requested")
+            sys.exit(-1)
         if job_vars["RECALIBRATED_OUTPUT"] and job_vars["BQSR_SITES"] is None:
-            sys.exit("Error: Cannot output a recalibrated BAM file without "
-                     "running BQSR. Please supply 'BQSR_SITES'")
+            logging.error("Cannot output a recalibrated BAM file without "
+                          "running BQSR. Please supply 'BQSR_SITES'")
+            sys.exit(-1)
         valid_algos = ("Haplotyper", "DNAscope")
         if job_vars["CALLING_ALGO"] not in valid_algos:
-            sys.exit("Error: '" + job_vars["CALLING_ALGO"] + "' is not a "
-                     "valid germline variant calling algo. Please set "
-                     "'CALLING_ALGO' to one of " + str(valid_algos))
+            logging.error(job_vars["CALLING_ALGO"] + "' is not a "
+                          "valid germline variant calling algo. Please set "
+                          "'CALLING_ALGO' to one of " + str(valid_algos))
+            sys.exit(-1)
         # Additional CCDG checks
         if pipeline == "CCDG":
             if job_vars["BQSR_SITES"] is None:
-                sys.exit("Error: The CCDG pipeline requires known sites for "
-                         "BQSR. Please supply 'BQSR_SITES'")
+                logging.error("The CCDG pipeline requires known sites for "
+                              "BQSR. Please supply 'BQSR_SITES'")
+                sys.exit(-1)
     elif pipeline == "SOMATIC":
         if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
-            sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' "
-                     "(not both)")
+            logging.error("Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' "
+                          "(not both)")
+            sys.exit(-1)
         if (not job_vars["TUMOR_FQ1"] and
                 not job_vars["TUMOR_BAM"]):
-            sys.exit("Error: Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM'")
+            logging.error("Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM'")
+            sys.exit(-1)
         if (job_vars["RUN_TNSNV"] and
                 not job_vars["REALIGN_SITES"]):
-            sys.exit("Error: TNsnv requires indel realignment. Please supply "
-                     "'REALIGN_SITES'")
+            logging.error("TNsnv requires indel realignment. Please supply "
+                          "'REALIGN_SITES'")
+            sys.exit(-1)
         if (job_vars["NO_BAM_OUTPUT"] and
                 job_vars["NO_VCF"] and job_vars["NO_METRICS"]):
-            sys.exit("Error: No output files requested")
+            logging.error("No output files requested")
+            sys.exit(-1)
         if ((job_vars["TUMOR_FQ1"] and job_vars["TUMOR_READGROUP"]) and
                 (len(job_vars["TUMOR_FQ1"].split(',')) !=
                     len(job_vars["TUMOR_READGROUP"].split(',')))):
-            sys.exit("Error: The number of tumor fastq files must match the "
-                     "number of supplied readgroups")
+            logging.error("The number of tumor fastq files must match the "
+                          "number of supplied readgroups")
+            sys.exit(-1)
         valid_algos = ("TNhaplotyper", "TNhaplotyper2", "TNscope", "TNsnv")
         if job_vars["CALLING_ALGO"] not in valid_algos:
-            sys.exit("Error: '" + job_vars["CALLING_ALGO"] + "' is not a "
-                     "valid somatic variant calling algo. Please set "
-                     "'CALLING_ALGO' to one of " + str(valid_algos))
+            logging.error(job_vars["CALLING_ALGO"] + "' is not a "
+                          "valid somatic variant calling algo. Please set "
+                          "'CALLING_ALGO' to one of " + str(valid_algos))
+            sys.exit(-1)
     if not args.no_check_inputs_exist:
         check_inputs_exist(job_vars, credentials)
 
@@ -263,7 +319,8 @@ def main(vargs=None):
     elif pipeline == "CCDG":
         _cmd = "/opt/sentieon/gc_ccdg_germline.sh"
     else:
-        sys.exit("Error: Unknown pipeline " + pipeline)
+        logging.error("Error: Unknown pipeline " + pipeline)
+        sys.exit(-1)
 
     run_action = {
         "name": "run-pipeline",
@@ -305,17 +362,16 @@ def main(vargs=None):
                     operation = (service.projects().operations().get(
                         name=operation['name']).execute())
                 except ssl.SSLError:
-                    print("Network error while polling running operation.")
-                    sys.stdout.flush()
+                    logging.error("Network error while polling running "
+                                  "operation.")
                     sys.exit(1)
-            pprint(operation, indent=2)
+            logging.debug(pformat(operation, indent=2))
             if "error" in operation:
                 if (not any([x["details"]["@type"] == "type.googleapis.com/"
                              "google.genomics.v2alpha1.WorkerAssignedEvent"
                              for x in operation["metadata"]["events"]])):
-                    print("Genomics operation failed before running:")
-                    pprint(operation["error"], indent=2)
-                    sys.stdout.flush()
+                    logging.error("Genomics operation failed before running:")
+                    logging.error(pformat(operation["error"], indent=2))
                     sys.exit(2)
 
                 startup_event = list(filter(
@@ -339,10 +395,11 @@ def main(vargs=None):
                         any([(x["operationType"] ==
                               "compute.instances.preempted")
                             for x in compute_ops["items"]])):
-                    print("Run {} failed. Retrying...".format(counter))
+                    logging.warning("Run {} failed. "
+                                    "Retrying...".format(counter))
                 else:
-                    print("Run {} failed, but not due to preemption. "
-                          "Exit".format(counter))
+                    logging.error("Run {} failed, but not due to preemption. "
+                                  "Exit".format(counter))
                     operation = None
                     break
             else:
@@ -355,7 +412,7 @@ def main(vargs=None):
             vm_dict["preemptible"] = False
             non_preemptible_tries -= 1
 
-        print("Running pipeline:")
+        logging.debug("Running pipeline:")
         body = {
             "pipeline": {
                 "actions": [run_action, cleanup_action],
@@ -364,9 +421,20 @@ def main(vargs=None):
             }
         }
 
-        pprint(body, indent=2)
-        sys.stdout.flush()
-        operation = service.pipelines().run(body=body).execute()
+        logging.debug(pformat(body, indent=2))
+        sys.stderr.flush()
+        backoff, backoff_interval = 0, 1
+        while backoff < 6:
+            time.sleep(backoff_interval * random.random() * (2 ** backoff - 1))
+            try:
+                operation = service.pipelines().run(body=body).execute()
+                break
+            except googleapiclient.errors.HttpError as e:
+                logging.warning(str(e))
+                backoff += 1
+        if not operation:
+            logging.error("Failed to launch job")
+            sys.exit(3)
         counter += 1
 
     if operation:
@@ -377,18 +445,16 @@ def main(vargs=None):
                 operation = service.projects().operations().get(
                         name=operation["name"]).execute()
             except ssl.SSLError:
-                print("Network error while waiting for the final operation "
-                      "to finish")
-                sys.stdout.flush()
+                logging.error("Network error while waiting for the final "
+                              "operation to finish")
                 sys.exit(1)
-        pprint(operation, indent=2)
+        logging.debug(pformat(operation, indent=2))
         if "error" in operation:
             if (not any([x["details"]["@type"] == "type.googleapis.com/"
                          "google.genomics.v2alpha1.WorkerAssignedEvent"
                          for x in operation["metadata"]["events"]])):
-                print("Genomics operation failed before running:")
-                pprint(operation["error"], indent=2)
-                sys.stdout.flush()
+                logging.error("Genomics operation failed before running:")
+                logging.error(pformat(operation["error"], indent=2))
                 sys.exit(2)
 
             instance = (operation["metadata"]["events"]
@@ -401,12 +467,9 @@ def main(vargs=None):
                     filter=("(targetLink eq {url}) (operationType eq "
                             "compute.instances.preempted)").format(
                         **locals())).execute()
-            if "items" in compute_ops:
-                print("Final run failed due to preemption")
-            else:
-                print("Final run failed, not due to preemption")
+            logging.error("Final run failed.")
         else:
-            print("Operation succeeded")
+            logging.warning("Operation succeeded")
 
 
 if __name__ == "__main__":
