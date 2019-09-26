@@ -357,14 +357,24 @@ def main(vargs=None):
     while non_preemptible_tries > 0 or preemptible_tries > 0:
         if operation:
             while not operation["done"]:
-                time.sleep(polling_interval)
-                try:
-                    operation = (service.projects().operations().get(
-                        name=operation['name']).execute())
-                except ssl.SSLError:
+                new_op, tries = None, 0
+                while tries <= 5:
+                    time.sleep(polling_interval)
+                    try:
+                        new_op = (service.projects().operations().get(
+                            name=operation['name']).execute())
+                        break
+                    except googleapiclient.errors.HttpError as e:
+                        logging.warning(str(e))
+                        tries += 1
+                    except ssl.SSLError as e:
+                        logging.warning(str(e))
+                        tries += 1
+                if not new_op:
                     logging.error("Network error while polling running "
                                   "operation.")
                     sys.exit(1)
+                operation = new_op
             logging.debug(pformat(operation, indent=2))
             if "error" in operation:
                 if (not any([x["details"]["@type"] == "type.googleapis.com/"
@@ -435,19 +445,30 @@ def main(vargs=None):
         if not operation:
             logging.error("Failed to launch job")
             sys.exit(3)
+        else:
+            logging.warning("Launched job: " + operation["name"])
         counter += 1
 
     if operation:
         while not operation["done"]:
-            time.sleep(polling_interval)
-            try:
-
-                operation = service.projects().operations().get(
-                        name=operation["name"]).execute()
-            except ssl.SSLError:
+            new_op, tries = None, 0
+            while tries <= 5:
+                time.sleep(polling_interval)
+                try:
+                    new_op = service.projects().operations().get(
+                            name=operation["name"]).execute()
+                    break
+                except googleapiclient.errors.HttpError as e:
+                    logging.warning(str(e))
+                    tries += 1
+                except ssl.SSLError:
+                    logging.warning(str(e))
+                    tries += 1
+            if not new_op:
                 logging.error("Network error while waiting for the final "
                               "operation to finish")
                 sys.exit(1)
+            operation = new_op
         logging.debug(pformat(operation, indent=2))
         if "error" in operation:
             if (not any([x["details"]["@type"] == "type.googleapis.com/"
