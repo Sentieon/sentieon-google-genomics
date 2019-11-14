@@ -47,7 +47,7 @@ For a tutorial, see Google's tutorial on [running a Sentieon DNAseq pipeline](ht
 1. [Install Python 2.7+](https://www.python.org/downloads/).
 2. Select or create a GCP project.
 3. Make sure that billing is enabled for your Google Cloud Platform project.
-4. Enable the Cloud Genomics, Compute Engine, and Cloud Storage APIs.
+4. Enable the Cloud Life Sciences, Compute Engine, and Cloud Storage APIs.
 5. Install and initialize the Cloud SDK.
 6. Update and install gcloud components:
 ```bash

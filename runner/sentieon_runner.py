@@ -285,6 +285,10 @@ def main(vargs=None):
         check_inputs_exist(job_vars, credentials)
 
     # Resources dict
+    zones = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
+    if not zones:
+        logging.error("Please supply at least one zone to run the pipeline")
+    region = zones[0][:-2]
     disk = {
         "name": "local-disk",
         "type": "local-ssd",
@@ -299,8 +303,7 @@ def main(vargs=None):
         "cpuPlatform": job_vars["CPU_PLATFORM"]
     }
     resources_dict = {
-        "projectId": job_vars["PROJECT_ID"],
-        "zones": job_vars["ZONES"].split(',') if job_vars["ZONES"] else [],
+        "zones": zones,
         "virtualMachine": vm_dict
     }
 
@@ -323,7 +326,7 @@ def main(vargs=None):
         sys.exit(-1)
 
     run_action = {
-        "name": "run-pipeline",
+        "containerName": "run-pipeline",
         "imageUri": job_vars["DOCKER_IMAGE"],
         "commands": ["/bin/bash", _cmd],
         "mounts": [{
@@ -334,7 +337,7 @@ def main(vargs=None):
     }
 
     cleanup_action = {
-        "name": "cleanup",
+        "containerName": "cleanup",
         "imageUri": job_vars["DOCKER_IMAGE"],
         "commands": [
             "/bin/bash",
@@ -344,25 +347,26 @@ def main(vargs=None):
              "gsutil cp /google/logs/action/1/stdout "
              "\"{}/worker_logs/stdout.txt\"").format(
                  job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"])],
-        "flags": ["ALWAYS_RUN"]
+        "alwaysRun": True
     }
 
     # Run the pipeline #
-    service = build('genomics', 'v2alpha1', credentials=credentials)
+    project = job_vars["PROJECT_ID"]
+    service_parent = "projects/" + project + "/locations/" + region
+    service = build('lifesciences', 'v2beta', credentials=credentials)
     compute_service = build("compute", "v1", credentials=credentials)
     operation = None
     counter = 0
-    project = job_vars["PROJECT_ID"]
 
     while non_preemptible_tries > 0 or preemptible_tries > 0:
         if operation:
-            while not operation["done"]:
+            while not operation.get("done", False):
                 new_op, tries = None, 0
                 while tries <= 5:
                     time.sleep(polling_interval)
                     try:
-                        new_op = (service.projects().operations().get(
-                            name=operation['name']).execute())
+                        ops = service.projects().locations().operations()
+                        new_op = ops.get(name=operation['name']).execute()
                         break
                     except googleapiclient.errors.HttpError as e:
                         logging.warning(str(e))
@@ -377,24 +381,19 @@ def main(vargs=None):
                 operation = new_op
             logging.debug(pformat(operation, indent=2))
             if "error" in operation:
-                if (not any([x["details"]["@type"] == "type.googleapis.com/"
-                             "google.genomics.v2alpha1.WorkerAssignedEvent"
-                             for x in operation["metadata"]["events"]])):
+                assigned_events = list(filter(
+                        lambda x: "workerAssigned" in x.keys(),
+                        operation["metadata"]["events"]))
+                if not assigned_events:
                     logging.error("Genomics operation failed before running:")
                     logging.error(pformat(operation["error"], indent=2))
                     sys.exit(2)
 
-                startup_event = list(filter(
-                        lambda x: (
-                            "details" in x and
-                            "@type" in x["details"] and
-                            x["details"]["@type"] == "type.googleapis.com/"
-                            "google.genomics.v2alpha1.WorkerAssignedEvent"),
-                        operation["metadata"]["events"]))[0]
-                instance = startup_event["details"]["instance"]
-                zone = startup_event["details"]["zone"]
+                startup_event = assigned_events[-1]
+                instance = startup_event["workerAssigned"]["instance"]
+                zone = startup_event["workerAssigned"]["zone"]
                 url = target_url_base.format(**locals())
-                time.sleep(300)  # It may take some time to set the preemption operation
+                time.sleep(300)  # It may take some time to set the operation
                 compute_ops = (
                         compute_service.zoneOperations().list(
                             project=project, zone=zone, filter=(
@@ -437,7 +436,11 @@ def main(vargs=None):
         while backoff < 6:
             time.sleep(backoff_interval * random.random() * (2 ** backoff - 1))
             try:
-                operation = service.pipelines().run(body=body).execute()
+                op_pipelines = service.projects().locations().pipelines()
+                request = op_pipelines.run(
+                        parent=service_parent,
+                        body=body)
+                operation = request.execute()
                 break
             except googleapiclient.errors.HttpError as e:
                 logging.warning(str(e))
@@ -448,15 +451,16 @@ def main(vargs=None):
         else:
             logging.warning("Launched job: " + operation["name"])
         counter += 1
+        logging.debug(pformat(operation, indent=2))
 
     if operation:
-        while not operation["done"]:
+        while not operation.get("done", False):
             new_op, tries = None, 0
             while tries <= 5:
                 time.sleep(polling_interval)
                 try:
-                    new_op = service.projects().operations().get(
-                            name=operation["name"]).execute()
+                    new_op = service.projects().locations().operations().get(
+                        name=operation["name"]).execute()
                     break
                 except googleapiclient.errors.HttpError as e:
                     logging.warning(str(e))
@@ -471,16 +475,17 @@ def main(vargs=None):
             operation = new_op
         logging.debug(pformat(operation, indent=2))
         if "error" in operation:
-            if (not any([x["details"]["@type"] == "type.googleapis.com/"
-                         "google.genomics.v2alpha1.WorkerAssignedEvent"
-                         for x in operation["metadata"]["events"]])):
+            assigned_events = list(filter(
+                    lambda x: "workerAssigned" in x.keys(),
+                    operation["metadata"]["events"]))
+            if not assigned_events:
                 logging.error("Genomics operation failed before running:")
                 logging.error(pformat(operation["error"], indent=2))
                 sys.exit(2)
 
-            instance = (operation["metadata"]["events"]
-                        [-1]["details"]["instance"])
-            zone = operation["metadata"]["events"][-1]["details"]["zone"]
+            startup_event = assigned_events[-1]
+            instance = startup_event["workerAssigned"]["instance"]
+            zone = startup_event["workerAssigned"]["zone"]
             url = target_url_base.format(**locals())
             compute_ops = compute_service.zoneOperations().list(
                     project=project,
