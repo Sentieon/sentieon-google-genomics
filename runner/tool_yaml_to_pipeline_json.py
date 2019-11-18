@@ -6,6 +6,7 @@ import copy
 import os
 import json
 
+
 def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
     '''
     If an object is in b but not a, add it to a.
@@ -22,8 +23,8 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
                 add_to_yaml(a[k], b[k])
             else:
                 a[k] = b[k]
-    elif type(a) is list: # In this case, order is unimportant
-        try: # Only applicable with zones.
+    elif type(a) is list:  # In this case, order is unimportant
+        try:  # Only applicable with zones.
             a_set, b_set = set(a), set(b)
             intersection = list(a_set.intersection(b_set))
             for i in range(len(a) - 1, -1, -1):
@@ -35,7 +36,8 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
         except TypeError:
             pass
         # item["name"] essentially acts as a key
-        a_dict, b_dict = dict([(x["name"], x) for x in a]), dict([(x["name"], x) for x in b])
+        a_dict = dict([(x["name"], x) for x in a])
+        b_dict = dict([(x["name"], x) for x in b])
         for k, v in b_dict.items():
             if k in ignore_keys:
                 continue
@@ -50,13 +52,15 @@ def add_to_yaml(a, b, ignore_keys=set(("name", "description", "PIPELINE"))):
             print("'{}' does not equal '{}'".format(a, b))
             raise ValueError("Values are unequal")
 
-germline = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_germline.yaml"))
+
+script_dir = os.path.dirname(os.path.realpath(__file__))
+germline = yaml.load(open(script_dir + "/germline.yaml"))
 tn = None
 try:
-    tn = yaml.load(open(os.path.dirname(os.path.realpath(__file__)) + "/sentieon_somatic.yaml"))
+    tn = yaml.load(open(script_dir + "/somatic.yaml"))
 except IOError:
     pass
-output = os.path.dirname(os.path.realpath(__file__)) + "/runner_default.json"
+output = script_dir + "/runner_default.json"
 
 additional_input_params = {
         "ZONES": None,
@@ -65,7 +69,7 @@ additional_input_params = {
         "MIN_RAM_GB": 56,
         "PIPELINE": "DNA",
         "PROJECT_ID": None,
-        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:201711.02",
+        "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.0",
         "PREEMPTIBLE_TRIES": 0,
         "NONPREEMPTIBLE_TRY": True
 }

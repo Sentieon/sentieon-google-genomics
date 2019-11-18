@@ -1,24 +1,9 @@
-name: Sentieon_tnseq
-description: Run a Sentieon TN pipeline on the Google Cloud
+name: Sentieon_ccdg
+description: Run a Sentieon CCDG pipeline on the Google Cloud
 
 inputParameters:
 # Required parameters
-# TUMOR_FQ1 or TUMOR_BAM is required
-- name: TUMOR_FQ1
-  defaultValue: None
-  description: Fastq for a single sample (comma-separated)
-- name: TUMOR_FQ2
-  defaultValue: None
-  description: Fastq pairs for a single sample (comma-separated)
-- name: TUMOR_BAM
-  defaultValue: None
-  description: Bam files for a single sample (comma-separated)
-- name: OUTPUT_BUCKET
-  description: The output Google Cloud Storage directory
-- name: REF
-  description: The refence genome (and assoicated indicies)
-
-# Optional parameters
+# FQ1 or BAM is required
 - name: FQ1
   defaultValue: None
   description: Fastq for a single sample (comma-separated)
@@ -28,15 +13,21 @@ inputParameters:
 - name: BAM
   defaultValue: None
   description: Bam files for a single sample (comma-separated)
+- name: OUTPUT_BUCKET
+  description: The output Google Cloud Storage directory
+- name: REF
+  description: The refence genome (and assoicated indicies)
+
+# Optional parameters
+- name: EMAIL
+  description: An email to use to obtain an evaluation license
+  defaultValue: None
+- name: SENTIEON_VERSION
+  description: Version of the Sentieon software to use
+  defaultValue: 201808.07
 - name: READGROUP
   description: Readgroup information to add during alignment
   defaultValue: "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA"
-- name: TUMOR_READGROUP
-  description: Readgroup information to add during alignment
-  defaultValue: "@RG\\tID:tumor-read-group\\tSM:tumor-sample-name\\tPL:ILLUMINA"
-- name: DEDUP
-  description: Duplicate removal to run (nodup, markdup, or rmdup)
-  defaultValue: rmdup
 - name: BQSR_SITES
   description: Known sites for BQSR (comma-separated)
   defaultValue: None
@@ -55,22 +46,27 @@ inputParameters:
 - name: NO_BAM_OUTPUT
   description: Set to not output a preprocessed BAM file
   defaultValue: None
-- name: NO_VCF
+- name: NO_HAPLOTYPER
   description: Set to not output a VCF
   defaultValue: None
-- name: RUN_TNSNV
-  description: Use TNsnv as the variant caller
+- name: GVCF_OUTPUT
+  description: Set to output a GVCF instead of a VCF
   defaultValue: None
 - name: STREAM_INPUT
   description: Stream fastq input directly from storage
   defaultValue: None
 - name: PIPELINE
-  description: Run DNAseq or DNAscope
-  defaultValue: TNseq
-- name: REALIGN_SITES
-  description: Known sites for indel realignment (comma-separated)
-  defaultValue: None
+  description: Run the CCDG preprocessing pipeline
+  defaultValue: CCDG
 - name: SENTIEON_KEY
   description: A Sentieon License Key
   defaultValue: None
-
+- name: DNASCOPE_MODEL
+  description: A trained model to use with DNAscope
+  defaultValue: https://s3.amazonaws.com/sentieon-release/other/SentieonDNAscopeModelBeta0.4a-201808.05.model
+- name: CALLING_ARGS
+  description: Additional parameters to set during variant calling
+  defaultValue: None
+- name: CALLING_ALGO
+  description: The variant calling algorithm to use
+  defaultValue: Haplotyper

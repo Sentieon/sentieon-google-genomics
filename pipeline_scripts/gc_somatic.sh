@@ -4,20 +4,16 @@ set -xveo pipefail
 set +H
 
 BASEDIR=$(dirname "$0")
-version="201808.01"
-release_dir="/opt/sentieon/sentieon-genomics-${version}/"
 scratch=/mnt/work
 nt=$(nproc)
 source $BASEDIR/gc_functions.sh
-
-export LD_PRELOAD=/opt/sentieon/sentieon-genomics-${version}/lib/libjemalloc.so
-export MALLOC_CONF=lg_dirty_mult:-1
 
 # Set "None" varibles to an empty string
 environmental_variables=(FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
-    STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT SENTIEON_KEY)
+    STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT SENTIEON_KEY \
+    EMAIL SENTIEON_VERSION CALLING_ARGS CALLING_ALGO)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
@@ -60,22 +56,27 @@ fi
 readonly FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
-    STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT
+    STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT EMAIL \
+    SENTIEON_VERSION CALLING_ARGS CALLING_ALGO
+
+release_dir="/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/"
 
 # *****************************
 # 0. Setup
 # *****************************
 gc_setup
+export LD_PRELOAD=${release_dir}/lib/libjemalloc.so
+export MALLOC_CONF=lg_dirty_mult:-1
 
 ## Download input files
 if [[ -n "$BAM" ]]; then
-    download_bams $BAM local_bams $input_dir
+    download_bams "$BAM" local_bams $input_dir
 else
     local_bams=()
 fi
 
 if [[ -n "$TUMOR_BAM" ]]; then
-    download_bams $TUMOR_BAM tumor_bams $input_dir
+    download_bams "$TUMOR_BAM" tumor_bams $input_dir
 else
     tumor_bams=()
 fi
@@ -84,45 +85,41 @@ download_intervals
 download_reference
 
 ## Handle the sites files
-gs_bqsr_sites=($(echo $BQSR_SITES | tr ',' ' '))
+IFS=',' read -r -a gs_bqsr_sites <<< "$BQSR_SITES"
 transfer_all_sites $bqsr_dir "${gs_bqsr_sites[@]}"
-local_bqsr_sites="${local_sites[@]}"
+local_bqsr_sites=("${local_sites[@]}")
 bqsr_sites="$local_str"
 
-gs_realign_sites=($(echo $REALIGN_SITES | tr ',' ' '))
+IFS=',' read -r -a gs_realign_sites <<< "$REALIGN_SITES"
 transfer_all_sites $realign_dir "${gs_realign_sites[@]}"
-local_realign_sites="${local_sites[@]}"
+local_realign_sites=("${local_sites[@]}")
 realign_sites="$local_str"
 
 if [[ -n "$DBSNP" ]]; then
-    transfer_all_sites $dbsnp_dir $DBSNP
-    dbsnp=${local_sites[0]}
+    transfer_all_sites $dbsnp_dir "$DBSNP"
+    dbsnp="${local_sites[0]}"
 fi
 
 # ******************************************
 # 1. Mapping reads with BWA-MEM, sorting
 # ******************************************
 output_ext="bam"
-#if [[ -n "$NO_BAM_OUTPUT" || "$DEDUP" != "nodup" || -n "$REALIGN_SITES" ]]; then
-#    util_sort_xargs="${util_sort_xargs} --bam_compression 1 "
-#fi
-
 if [[ -n "$FQ1" ]]; then
-    bwa_mem_align "normal_" $FQ1 $FQ2 $READGROUP local_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
+    bwa_mem_align "normal_" "$FQ1" "$FQ2" "$READGROUP" local_bams $output_ext "-M -K 10000000" "$util_sort_xargs" "false"
 fi
 
 local_bams_str=""
-for bam in ${local_bams[@]}; do
-    local_bams_str+=" -i $bam "
+for bam in "${local_bams[@]}"; do
+    local_bams_str+=" -i \"$bam\" "
 done
 
 if [[ -n "$TUMOR_FQ1" ]]; then
-    bwa_mem_align "tumor_" $TUMOR_FQ1 $TUMOR_FQ2 $TUMOR_READGROUP tumor_bams $output_ext "$bwa_xargs" "$util_sort_xargs"
+    bwa_mem_align "tumor_" "$TUMOR_FQ1" "$TUMOR_FQ2" "$TUMOR_READGROUP" tumor_bams $output_ext "-M -K 10000000" "$util_sort_xargs" "false"
 fi
 
 tumor_bams_str=""
-for bam in ${tumor_bams[@]}; do
-    tumor_bams_str+=" -i $bam "
+for bam in "${tumor_bams[@]}"; do
+    tumor_bams_str+=" -i \"$bam\" "
 done
 
 # Detect the tumor and normal sample names
@@ -152,12 +149,9 @@ fi
 # 3. Remove duplicates
 # ******************************************
 output_ext="bam"
-#if [[ -n "$NO_BAM_OUTPUT" || -n "$REALIGN_SITES" ]]; then
-#    dedup_xargs=" --bam_compression 1 "
-#fi
 
-run_mark_duplicates "normal_" $DEDUP metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext ${local_bams[@]}
-run_mark_duplicates "tumor_" $DEDUP tumor_metrics_cmd1 "$tumor_bams_str" tumor_dedup_bam_str tumor_dedup_bams "$dedup_xargs" $output_ext ${tumor_bams[@]}
+run_mark_duplicates "normal_" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "false" "${local_bams[@]}"
+run_mark_duplicates "tumor_" "$DEDUP" tumor_metrics_cmd1 "$tumor_bams_str" tumor_dedup_bam_str tumor_dedup_bams "$dedup_xargs" $output_ext "false" "${tumor_bams[@]}"
 
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then
@@ -165,36 +159,36 @@ if [[ "$DEDUP" != "nodup" ]]; then
         if [[ -n "$dedup_bam_str" ]]; then
             to_upload+=" $metrics_dir/normal_dedup_metrics.txt"
         fi
-        (gsutil cp $to_upload $out_metrics &&
+        (gsutil cp $to_upload "$out_metrics" &&
             rm $metrics_dir/*_dedup_metrics.txt) &
         upload_dedup_pid=$!
     else
         rm $metrics_dir/*_dedup_metrics.txt &
     fi
-    for bam in ${local_bams[@]} ${tumor_bams[@]}; do
-        if [[ -f $bam ]]; then
-            rm $bam &
+    for bam in "${local_bams[@]}" "${tumor_bams[@]}"; do
+        if [[ -f "$bam" ]]; then
+            rm "$bam" &
         fi
-        if [[ -f ${bam}.bai ]]; then
-            rm ${bam}.bai &
+        if [[ -f "${bam}".bai ]]; then
+            rm "${bam}".bai &
         fi
-        if [[ -f ${bam}.crai ]]; then
-            rm ${bam}.crai &
+        if [[ -f "${bam}".crai ]]; then
+            rm "${bam}".crai &
         fi
     done
 fi
 
 if [[ -z "$NO_BAM_OUTPUT" && -z "$REALIGN_SITES" ]]; then
     upload_list=""
-    for bam in ${dedup_bams[@]} ${tumor_dedup_bams[@]}; do
-        upload_list+=" $bam "
+    for bam in "${dedup_bams[@]}" "${tumor_dedup_bams[@]}"; do
+        upload_list+=" \"$bam\" "
         if [[ -f "${bam}.bai" ]]; then
-            upload_list+=" ${bam}.bai "
+            upload_list+=" \"${bam}.bai\" "
         elif [[ -f "${bam}.crai" ]]; then
-            upload_list+=" ${bam}.crai "
+            upload_list+=" \"${bam}.crai\" "
         fi
     done
-    gsutil cp $upload_list $out_bam &
+    eval gsutil cp $upload_list "$out_bam" &
     upload_deduped_pid=$!
 fi
 
@@ -205,30 +199,27 @@ upload_metrics tumor_metrics_cmd1 tumor_metrics_cmd2 tumor_upload_metrics_pid ${
 # 4. Indel Realignment
 # ******************************************
 output_ext="bam"
-#if [[ -n "$NO_BAM_OUTPUT" || -n "$dedup_bam_str" ]]; then
-#    realign_xargs=" --bam_compression 1 "
-#fi
 
 if [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" ]]; then
     realigned_bam=$work/normal_realigned.${output_ext}
     tumor_realigned_bam=$work/tumor_realigned.${output_ext}
     if [[ -n "$dedup_bam_str" ]]; then
-        cmd="$release_dir/bin/sentieon driver $dedup_bam_str -t $nt -r $ref --algo Realigner $realign_xargs $interval_list $realign_sites $realigned_bam"
+        cmd="$release_dir/bin/sentieon driver $dedup_bam_str -t $nt -r \"$ref\" --algo Realigner ${interval_list:+--interval_list \"$interval_list\"} $realign_sites $realigned_bam"
         run "$cmd" "Indel Realign - Normal"
     fi
-    cmd="$release_dir/bin/sentieon driver $tumor_dedup_bam_str -t $nt -r $ref --algo Realigner $realign_xargs $interval_list $realign_sites $tumor_realigned_bam"
+    cmd="$release_dir/bin/sentieon driver $tumor_dedup_bam_str -t $nt -r \"$ref\" --algo Realigner ${interval_list:+--interval_list \"$interval_list\"} $realign_sites $tumor_realigned_bam"
     run "$cmd" "Indel Realign - Tumor"
 
     # Cleanup
-    for bam in ${dedup_bams[@]} ${tumor_dedup_bams[@]}; do
+    for bam in "${dedup_bams[@]}" "${tumor_dedup_bams[@]}"; do
         if [[ -f "$bam" ]]; then
-            rm $bam &
+            rm "$bam" &
         fi
         if [[ -f "${bam}.bai" ]]; then
-            rm ${bam}.bai &
+            rm "${bam}".bai &
         fi
         if [[ -f "${bam}.crai" ]]; then
-            rm ${bam}.crai &
+            rm "${bam}".crai &
         fi
     done
 
@@ -242,9 +233,9 @@ if [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" ]]; then
     tumor_realigned_bams=($tumor_realigned_bam)
     tumor_realigned_bam_str=" -i $tumor_realigned_bam "
 else
-    realigned_bams=${dedup_bams[@]}
+    realigned_bams="${dedup_bams[@]}"
     realigned_bam_str=${dedup_bam_str}
-    tumor_realigned_bams=${tumor_dedup_bams[@]}
+    tumor_realigned_bams="${tumor_dedup_bams[@]}"
     tumor_realigned_bam_str=${tumor_dedup_bam_str}
 fi
 
@@ -263,7 +254,7 @@ if [[ -n "$realigned_bam_str" ]]; then
 fi
 
 if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" ]]; then
-    gsutil cp $bqsr_table $tumor_bqsr_table $out_bam &
+    gsutil cp $bqsr_table $tumor_bqsr_table "$out_bam" &
     upload_bqsr_pid=$!
 fi
 
@@ -274,30 +265,27 @@ upload_metrics tumor_metrics_cmd1 tumor_metrics_cmd2 tumor_upload_metrics_pid ${
 # 6. Indel corealignment
 # ******************************************
 output_ext="bam"
-#if [[ -n "$NO_BAM_OUTPUT" ]]; then
-#    corealign_xargs=" --bam_compression 1 "
-#fi
 
 if [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" && -n "$realigned_bam_str" ]]; then
     corealigned_bam=$work/corealigned.${output_ext}
-    cmd="$release_dir/bin/sentieon driver $realigned_bam_str $tumor_realigned_bam_str -t $nt -r $ref --algo Realigner $corealign_xargs $interval_list $realign_sites $corealigned_bam"
+    cmd="$release_dir/bin/sentieon driver $realigned_bam_str $tumor_realigned_bam_str -t $nt -r \"$ref\" --algo Realigner ${interval_list:+--interval_list \"$interval_list\"} $realign_sites $corealigned_bam"
     run "$cmd" "Indel co-realignment"
 
     # Cleanup
-    for bam in ${realigned_bams[@]} ${tumor_realigned_bams[@]}; do
-        if [[ -f $bam ]]; then
-            rm $bam &
+    for bam in "${realigned_bams[@]}" "${tumor_realigned_bams[@]}"; do
+        if [[ -f "$bam" ]]; then
+            rm "$bam" &
         fi
-        if [[ -f ${bam}.bai ]]; then
-            rm ${bam}.bai &
+        if [[ -f "${bam}".bai ]]; then
+            rm "${bam}".bai &
         fi
-        if [[ -f ${bam}.crai ]]; then
-            rm ${bam}.crai &
+        if [[ -f "${bam}".crai ]]; then
+            rm "${bam}".crai &
         fi
     done
-    for site_file in ${local_realign_sites[@]}; do
-        if [[ -f $site_file ]]; then
-            rm $site_file &
+    for site_file in "${local_realign_sites[@]}"; do
+        if [[ -f "$site_file" ]]; then
+            rm "$site_file" &
         fi
     done
 
@@ -308,21 +296,21 @@ if [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" && -n "$realigned_bam_str" ]]; then
     elif [[ -f "${corealigned_bam}.crai" ]]; then
         upload_list+=" ${corealigned_bam}.crai "
     fi
-    gsutil cp $upload_list $out_bam &
+    gsutil cp $upload_list "$out_bam" &
     upload_corealigned_pid=$!
 
     corealigned_bam_str=" -i $corealigned_bam "
 elif [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" ]]; then
     upload_list=""
-    for bam in ${tumor_realigned_bams[@]}; do
-        upload_list+=" $bam "
+    for bam in "${tumor_realigned_bams[@]}"; do
+        upload_list+=" \"$bam\" "
         if [[ -f "${bam}.bai" ]]; then
-            upload_list+=" ${bam}.bai "
+            upload_list+=" \"${bam}.bai\" "
         elif [[ -f "${bam}.crai" ]]; then
-            upload_list+=" ${bam}.crai "
+            upload_list+=" \"${bam}.crai\" "
         fi
     done
-    gsutil cp $upload_list $out_bam &
+    eval gsutil cp $upload_list "$out_bam" &
     upload_corealigned_pid=$!
 
     corealigned_bam_str=" $tumor_realigned_bam_str "
@@ -336,22 +324,16 @@ corealigned_bqsr_str=" ${tumor_bqsr_table:+-q $tumor_bqsr_table} ${bqsr_table:+-
 # *******************************************
 
 ## Generate a non-decoy BED file
-generate_nondecoy_bed ${ref}.fai ${ref}_nondecoy.bed
+generate_nondecoy_bed "${ref}".fai "${ref}"_nondecoy.bed
+call_interval="$interval"
+call_interval=${call_interval:-"${ref}"_nondecoy.bed}
 
 if [[ -z "$NO_VCF" ]]; then
     extra_calling_args=""
-    if [[ "$PIPELINE" == "TNscope" ]]; then
-        algo="TNscope"
-        vcf=$work/tnscope.vcf.gz
-    elif [[ -n "$RUN_TNSNV" ]]; then
-        algo="TNsnv"
-        vcf=$work/tnsnv.vcf.gz
-    else
-        algo="TNhaplotyper"
-        vcf=$work/tnhaplotyper.vcf.gz
-    fi
+    algo="$CALLING_ALGO"
+    vcf="$work"/"$CALLING_ALGO".vcf.gz
 
-    cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} $corealigned_bam_str $corealigned_bqsr_str -t $nt -r $ref --algo $algo ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp $dbsnp} $vcf"
+    cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" $corealigned_bam_str $corealigned_bqsr_str -t $nt -r \"$ref\" --algo $algo $CALLING_ARGS ${normal_sample:+--normal_sample $normal_sample} --tumor_sample $tumor_sample ${dbsnp:+--dbsnp \"$dbsnp\"} $vcf"
 
     if [[ -n $tumor_metrics_cmd1 ]]; then
         cmd+=" $metrics_cmd1 "
@@ -368,12 +350,12 @@ if [[ -z "$NO_VCF" ]]; then
     fi
 
     run "$cmd" "Variant calling"
-    gsutil cp $vcf ${vcf}.tbi $out_variants &
+    gsutil cp $vcf ${vcf}.tbi "$out_variants" &
     upload_vcf_pid=$!
 fi
 
 if [[ -n $tumor_metrics_cmd1 ]]; then
-    cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r '$ref' $corealigned_bam_str $corealigned_bqsr_str"
+    cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $corealigned_bam_str $corealigned_bqsr_str"
     cmd+=" $metrics_cmd1 "
     cmd+=" $tumor_metrics_cmd1 "
     metrics_cmd1=
@@ -385,7 +367,7 @@ upload_metrics metrics_cmd1 metrics_cmd2 upload_metrics_pid ${metrics_files[@]}
 upload_metrics tumor_metrics_cmd1 tumor_metrics_cmd2 tumor_upload_metrics_pid ${tumor_metrics_files[@]}
 
 if [[ -n $bqsr_cmd2 ]]; then
-    cmd="$release_dir/bin/sentieon driver ${interval:- --interval ${ref}_nondecoy.bed} -t $nt -r $ref $corealigned_bam_str $corealigned_bqsr_str $bqsr_cmd2 $tumor_bqsr_cmd2"
+    cmd="$release_dir/bin/sentieon driver --interval \"$call_interval\" -t $nt -r \"$ref\" $corealigned_bam_str $corealigned_bqsr_str $bqsr_cmd2 $tumor_bqsr_cmd2"
     bqsr_cmd2=
     tumor_bqsr_cmd2=
     run "$cmd" "BQSR Post"
@@ -400,11 +382,9 @@ if [[ -n $tumor_bqsr_cmd3 ]]; then
     fi
     run "$tumor_bqsr_cmd3" "Tumor BQSR CSV"
     run "$tumor_bqsr_cmd4" "Tumor BQSR plot"
-    gsutil cp $upload_list $tumor_bqsr_plot $out_metrics &
+    gsutil cp $upload_list $tumor_bqsr_plot "$out_metrics" &
     upload_bqsr_metrics_pid=$!
 fi
-
-kill $credentials_pid
 
 # Wait for all running uploads to finish
 set +e
@@ -438,4 +418,4 @@ fi
 if [[ -n $upload_bqsr_metrics_pid ]]; then
     wait $upload_bqsr_metrics_pid
 fi
-
+exit 0
