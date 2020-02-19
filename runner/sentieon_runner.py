@@ -45,7 +45,7 @@ def cloud_storage_exists(client, gs_path):
     return res
 
 
-def check_inputs_exist(job_vars, credentials):
+def _check_inputs_exist(job_vars, credentials):
     from google.cloud import storage
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "Your application has authenticated "
@@ -131,9 +131,12 @@ def check_inputs_exist(job_vars, credentials):
                     sys.exit(-1)
 
 
-def main(vargs=None):
+def parse_args(vargs=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("pipeline_config", help="The json configuration file")
+    parser.add_argument(
+            "pipeline_config",
+            nargs="?",
+            help="The json configuration file")
     parser.add_argument(
             "--verbose",
             "-v",
@@ -149,35 +152,30 @@ def main(vargs=None):
             type=float,
             default=30,
             help="Seconds between polling the running operation")
-    args = parser.parse_args()
-    polling_interval = args.polling_interval
+    return = parser.parse_args(vargs)
 
+
+def setup_logging(verbosity=0):
     logging.getLogger("googleapiclient."
                       "discovery_cache").setLevel(logging.ERROR)
     log_format = "%(filename)s::%(funcName)s [%(levelname)s] %(message)s"
-    if not hasattr(args, "verbose") or args.verbose is None:
+    if verbosity is None or verbosity < 1:
         log_level = logging.WARNING
-    elif args.verbose == 1:
+    elif verbosity == 1:
         log_level = logging.INFO
-    elif args.verbose >= 2:
-        log_level = logging.DEBUG
     else:
-        log_level = logging.WARNING
+        log_level = logging.DEBUG
     logging.basicConfig(level=log_level, format=log_format)
 
+
+def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
     # Grab input arguments from the json file
     try:
         job_vars = json.load(open(default_json))
     except json.decoder.JSONDecodeError as e:
         logging.error("Error reading the default json file: " + default_json)
         raise e
-    try:
-        pipeline_vars = json.load(open(args.pipeline_config))
-    except json.decoder.JSONDecodeError as e:
-        logging.error("Error reading the json "
-                      "file: " + args.pipeline_config)
-        raise e
-    job_vars.update(pipeline_vars)
+    job_vars.update(pipeline_config)
 
     preemptible_tries = int(job_vars["PREEMPTIBLE_TRIES"])
     if job_vars["NONPREEMPTIBLE_TRY"]:
@@ -292,8 +290,8 @@ def main(vargs=None):
                           "valid somatic variant calling algo. Please set "
                           "'CALLING_ALGO' to one of " + str(valid_algos))
             sys.exit(-1)
-    if not args.no_check_inputs_exist:
-        check_inputs_exist(job_vars, credentials)
+    if check_inputs_exist:
+        _check_inputs_exist(job_vars, credentials)
 
     # Resources dict
     zones = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
@@ -510,4 +508,20 @@ def main(vargs=None):
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    setup_logging(args.verbose)
+
+    if not args.pipeline_config:
+        logging.error("Please supply an input pipeline_config JSON")
+        sys.exit(-1)
+    try:
+        pipeline_config = json.load(open(args.pipeline_config))
+    except json.decoder.JSONDecodeError as e:
+        logging.error("Error reading the json file: " args.pipeline_config)
+        raise e
+
+    main(
+            pipeline_config,
+            polling_interval=args.polling_interval,
+            check_inputs_exist=not no_check_inputs_exist
+    )
