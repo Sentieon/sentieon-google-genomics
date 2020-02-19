@@ -45,13 +45,13 @@ def cloud_storage_exists(client, gs_path):
     return res
 
 
-def _check_inputs_exist(job_vars, credentials):
+def _check_inputs_exist(job_vars, credentials, project=None):
     from google.cloud import storage
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "Your application has authenticated "
                                 "using end user credentials from Google Cloud "
                                 "SDK")
-        client = storage.Client(credentials=credentials)
+        client = storage.Client(project=project, credentials=credentials)
 
     # The DBSNP, BQSR and Realign sites files
     sites_files = []
@@ -152,7 +152,7 @@ def parse_args(vargs=None):
             type=float,
             default=30,
             help="Seconds between polling the running operation")
-    return = parser.parse_args(vargs)
+    return parser.parse_args(vargs)
 
 
 def setup_logging(verbosity=0):
@@ -219,6 +219,7 @@ def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
     if not job_vars["PROJECT_ID"]:
         logging.error("Please supply a PROJECT_ID")
         sys.exit(-1)
+    project = job_vars["PROJECT_ID"]
 
     # Shared errors
     if job_vars["FQ1"] and job_vars["BAM"]:
@@ -291,7 +292,7 @@ def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
                           "'CALLING_ALGO' to one of " + str(valid_algos))
             sys.exit(-1)
     if check_inputs_exist:
-        _check_inputs_exist(job_vars, credentials)
+        _check_inputs_exist(job_vars, credentials, project=project)
 
     # Resources dict
     zones = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
@@ -360,7 +361,6 @@ def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
     }
 
     # Run the pipeline #
-    project = job_vars["PROJECT_ID"]
     service_parent = "projects/" + project + "/locations/" + region
     service = build('lifesciences', 'v2beta', credentials=credentials)
     compute_service = build("compute", "v1", credentials=credentials)
@@ -517,11 +517,11 @@ if __name__ == "__main__":
     try:
         pipeline_config = json.load(open(args.pipeline_config))
     except json.decoder.JSONDecodeError as e:
-        logging.error("Error reading the json file: " args.pipeline_config)
+        logging.error("Error reading the json file: " + args.pipeline_config)
         raise e
 
     main(
             pipeline_config,
             polling_interval=args.polling_interval,
-            check_inputs_exist=not no_check_inputs_exist
+            check_inputs_exist=not args.no_check_inputs_exist
     )
