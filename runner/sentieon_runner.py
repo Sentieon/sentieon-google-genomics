@@ -166,8 +166,19 @@ def main(vargs=None):
     logging.basicConfig(level=log_level, format=log_format)
 
     # Grab input arguments from the json file
-    job_vars = json.load(open(default_json))
-    job_vars.update(json.load(open(args.pipeline_config)))
+    try:
+        job_vars = json.load(open(default_json))
+    except json.decoder.JSONDecodeError as e:
+        logging.error("Error reading the default json file: " + default_json)
+        raise e
+    try:
+        pipeline_vars = json.load(open(args.pipeline_config))
+    except json.decoder.JSONDecodeError as e:
+        logging.error("Error reading the json "
+                      "file: " + args.pipeline_config)
+        raise e
+    job_vars.update(pipeline_vars)
+
     preemptible_tries = int(job_vars["PREEMPTIBLE_TRIES"])
     if job_vars["NONPREEMPTIBLE_TRY"]:
         non_preemptible_tries = 1
