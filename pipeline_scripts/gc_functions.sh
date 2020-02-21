@@ -107,7 +107,7 @@ unset_none_variables()
 gc_setup()
 {
     ## Download the Sentieon software
-    curl -L https://s3.amazonaws.com/sentieon-release/software/sentieon-genomics-${SENTIEON_VERSION}.tar.gz | tar -zxf - -C /opt/sentieon
+    curl -L https://sentieon-release.s3.amazonaws.com/software/sentieon-genomics-${SENTIEON_VERSION}.tar.gz | tar -zxf - -C /opt/sentieon
     PATH=/opt/sentieon/sentieon-genomics-${SENTIEON_VERSION}/bin:$PATH
 
     ## Dirs
