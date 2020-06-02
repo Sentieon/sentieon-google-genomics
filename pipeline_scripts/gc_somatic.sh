@@ -125,9 +125,9 @@ done
 # Detect the tumor and normal sample names
 normal_sample=""
 if [[ -f ${local_bams[0]} ]]; then
-    normal_sample=$(samtools view -H ${local_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\(.*\)	.*$/\1/')
+    normal_sample=$(samtools view -H ${local_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\([^	]*\).*$/\1/')
 fi
-tumor_sample=$(samtools view -H ${tumor_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\(.*\)	.*$/\1/')
+tumor_sample=$(samtools view -H ${tumor_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\([^	]*\).*$/\1/')
 
 # ******************************************
 # 2. Metrics command

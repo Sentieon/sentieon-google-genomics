@@ -24,7 +24,7 @@ inputParameters:
   defaultValue: None
 - name: SENTIEON_VERSION
   description: Version of the Sentieon software to use
-  defaultValue: 201808.07
+  defaultValue: 201911
 - name: FQ1
   defaultValue: None
   description: Fastq for a single sample (comma-separated)

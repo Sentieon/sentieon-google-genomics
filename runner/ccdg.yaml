@@ -24,7 +24,7 @@ inputParameters:
   defaultValue: None
 - name: SENTIEON_VERSION
   description: Version of the Sentieon software to use
-  defaultValue: 201808.07
+  defaultValue: 201911
 - name: READGROUP
   description: Readgroup information to add during alignment
   defaultValue: "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA"
