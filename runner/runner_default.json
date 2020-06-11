@@ -28,6 +28,7 @@
   "RUN_TNSNV": null,
   "REALIGN_SITES": null,
   "ZONES": null,
+  "PIPELINE_REGION": "us-central1",
   "DISK_SIZE": 300,
   "MACHINE_TYPE": "n1-highcpu-64",
   "CPU_PLATFORM": "Intel Broadwell",

@@ -360,13 +360,27 @@ def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
         "alwaysRun": True
     }
 
-    # Run the pipeline #
-    service_parent = "projects/" + project + "/locations/" + region
+    # Build the API services
     service = build('lifesciences', 'v2beta', credentials=credentials)
     compute_service = build("compute", "v1", credentials=credentials)
+
+    # Check the PIPELINE_REGION
+    name = "projects/" + project
+    locations = service.projects().locations().list(name=name).execute()
+    service_parent = []
+    for _loc in locations.get("locations", []):
+        if _loc["locationId"] == job_vars["PIPELINE_REGION"]:
+            service_parent.append(_loc["name"])
+    if len(service_parent) != 1:
+        possible_regions = ', '.join([x["locationId"] for x in locations["locations"]])
+        logging.error("Unknown PIPELINE_REGION '{}'. Please choose from: "
+                "{}".format(job_vars["PIPELINE_REGION"], possible_regions))
+        sys.exit(-1)
+    service_parent = service_parent[0]
+
+    # Run the pipeline
     operation = None
     counter = 0
-
     while non_preemptible_tries > 0 or preemptible_tries > 0:
         if operation:
             while not operation.get("done", False):
