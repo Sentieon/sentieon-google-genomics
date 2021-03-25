@@ -33,19 +33,25 @@ target_url_base = ("https://www.googleapis.com/compute/v1/projects/{project}/"
                    "zones/{zone}/instances/{instance}")
 
 
-def cloud_storage_exists(client, gs_path):
+def cloud_storage_exists(client, gs_path, user_project=None):
     try:
         bucket, blob = gs_path[5:].split('/', 1)
-        bucket = client.bucket(bucket)
+        bucket = client.bucket(bucket, user_project=user_project)
         blob = bucket.blob(blob)
         res = blob.exists()
-    except:  # Catch all exceptions
+    except Exception as err:  # Catch all exceptions
+        print(
+            "Error polling file in Google Cloud Storage: " + str(err),
+            file=sys.stderr,
+        )
         raise ValueError("Error: Could not find {gs_path} in Google Cloud "
                          "Storage".format(**locals()))
     return res
 
 
-def _check_inputs_exist(job_vars, credentials, project=None):
+def _check_inputs_exist(
+    job_vars, credentials, project=None, user_project=None
+):
     from google.cloud import storage
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "Your application has authenticated "
@@ -61,17 +67,23 @@ def _check_inputs_exist(job_vars, credentials, project=None):
                     job_vars["REALIGN_SITES"] else [])
     sites_files += [job_vars["DBSNP"]] if job_vars["DBSNP"] else []
     for sites_file in sites_files:
-        if not cloud_storage_exists(client, sites_file):
+        if not cloud_storage_exists(
+            client, sites_file, user_project=user_project
+        ):
             logging.error("Could not find supplied file "
                           "{}".format(sites_file))
             sys.exit(-1)
         if sites_file.endswith("vcf.gz"):
-            if not cloud_storage_exists(client, sites_file + ".tbi"):
+            if not cloud_storage_exists(
+                client, sites_file + ".tbi", user_project=user_project
+            ):
                 logging.error("Could not find index for file "
                               "{}".format(sites_file))
                 sys.exit(-1)
         else:
-            if not cloud_storage_exists(client, sites_file + ".idx"):
+            if not cloud_storage_exists(
+                client, sites_file + ".idx", user_project=user_project
+            ):
                 logging.error("Could not find index for file "
                               "{}".format(sites_file))
                 sys.exit(-1)
@@ -89,12 +101,16 @@ def _check_inputs_exist(job_vars, credentials, project=None):
         if not split_file:
             continue
         for input_file in split_file.split(','):
-            if not cloud_storage_exists(client, input_file):
+            if not cloud_storage_exists(
+                client, input_file, user_project=user_project
+            ):
                 logging.error("Could not find the supplied file "
                               "{}".format(input_file))
                 sys.exit(-1)
     for input_file in gs_files:
-        if not cloud_storage_exists(client, input_file):
+        if not cloud_storage_exists(
+            client, input_file, user_project=user_project
+        ):
             logging.error("Could not file the supplied file "
                           "{}".format(input_file))
             sys.exit(-1)
@@ -102,21 +118,29 @@ def _check_inputs_exist(job_vars, credentials, project=None):
     # All reference files
     ref = job_vars["REF"]
     ref_base = ref[:-3] if ref.endswith(".fa") else ref[:-6]
-    if not cloud_storage_exists(client, ref):
+    if not cloud_storage_exists(client, ref, user_project=user_project):
         logging.error("Reference file not found")
         sys.exit(-1)
-    if not cloud_storage_exists(client, ref + ".fai"):
+    if not cloud_storage_exists(
+        client, ref + ".fai", user_project=user_project
+    ):
         logging.error("Reference fai index not found")
         sys.exit(-1)
-    if (not cloud_storage_exists(client, ref + ".dict") and
-            not cloud_storage_exists(client, ref_base + ".dict")):
+    if not cloud_storage_exists(
+        client, ref + ".dict", user_project=user_project
+    ) and not cloud_storage_exists(
+        client, ref_base + ".dict", user_project=user_project
+    ):
         logging.error("Reference dict index not found")
         sys.exit(-1)
     # FQ specific
     if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:
         for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
-            if (not cloud_storage_exists(client, ref + suffix) and
-                    not cloud_storage_exists(client, ref + ".64" + suffix)):
+            if not cloud_storage_exists(
+                client, ref + suffix, user_project=user_project
+            ) and not cloud_storage_exists(
+                client, ref + ".64" + suffix, user_project=user_project
+            ):
                 logging.error("Reference BWA index {} not "
                               "found".format(suffix))
                 sys.exit(-1)
@@ -125,8 +149,11 @@ def _check_inputs_exist(job_vars, credentials, project=None):
     for bam_type in bam_vars:
         if job_vars[bam_type]:
             for bam in job_vars[bam_type].split(','):
-                if (not cloud_storage_exists(client, bam + ".bai") and
-                        not cloud_storage_exists(client, bam + "bai")):
+                if not cloud_storage_exists(
+                    client, bam + ".bai", user_project=user_project
+                ) and not cloud_storage_exists(
+                    client, bam + "bai", user_project=user_project
+                ):
                     logging.error("BAM supplied but BAI not found")
                     sys.exit(-1)
 
@@ -152,6 +179,10 @@ def parse_args(vargs=None):
             type=float,
             default=30,
             help="Seconds between polling the running operation")
+    parser.add_argument(
+            "--requester_project",
+            default=None,
+            help="A project to charge for local 'requester pays' requests")
     return parser.parse_args(vargs)
 
 
@@ -168,7 +199,12 @@ def setup_logging(verbosity=0):
     logging.basicConfig(level=log_level, format=log_format)
 
 
-def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
+def main(
+    pipeline_config,
+    polling_interval=30,
+    check_inputs_exist=True,
+    requester_project=None
+):
     # Grab input arguments from the json file
     try:
         job_vars = json.load(open(default_json))
@@ -292,7 +328,10 @@ def main(pipeline_config, polling_interval=30, check_inputs_exist=True):
                           "'CALLING_ALGO' to one of " + str(valid_algos))
             sys.exit(-1)
     if check_inputs_exist:
-        _check_inputs_exist(job_vars, credentials, project=project)
+        _check_inputs_exist(job_vars,
+                            credentials,
+                            project=project,
+                            user_project=requester_project)
 
     # Resources dict
     zones = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
@@ -535,7 +574,8 @@ if __name__ == "__main__":
         raise e
 
     main(
-            pipeline_config,
-            polling_interval=args.polling_interval,
-            check_inputs_exist=not args.no_check_inputs_exist
+        pipeline_config,
+        polling_interval=args.polling_interval,
+        check_inputs_exist=not args.no_check_inputs_exist,
+        requester_project=args.requester_project
     )
