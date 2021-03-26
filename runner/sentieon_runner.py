@@ -226,7 +226,7 @@ def main(
     # Grab input arguments from the json file
     try:
         job_vars = json.load(open(default_json))
-    except json.decoder.JSONDecodeError as e:
+    except ValueError as e:
         logging.error("Error reading the default json file: " + default_json)
         raise e
     job_vars.update(pipeline_config)
@@ -487,7 +487,7 @@ def main(
                         tries += 1
                 if not new_op:
                     logging.error(
-                        "Network error while polling running " "operation."
+                        "Network error while polling running operation."
                     )
                     sys.exit(1)
                 operation = new_op
@@ -647,7 +647,7 @@ if __name__ == "__main__":
         sys.exit(-1)
     try:
         pipeline_config = json.load(open(args.pipeline_config))
-    except json.decoder.JSONDecodeError as e:
+    except ValueError as e:
         logging.error("Error reading the json file: " + args.pipeline_config)
         raise e
 

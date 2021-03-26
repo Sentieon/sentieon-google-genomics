@@ -70,3 +70,6 @@ inputParameters:
 - name: CALLING_ALGO
   description: The variant calling algorithm to use
   defaultValue: Haplotyper
+- name: REQUESTER_PROJECT
+  description: The requester project to use for for gsutil requests on the remote server
+  defaultValue: None

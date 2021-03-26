@@ -45,7 +45,7 @@ transfer()
     src_file=$1
     dst_file=$2
     start_s=`date +%s`
-    gsutil cp "$src_file" "$dst_file"
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp "$src_file" "$dst_file"
     check_error $? "Transfer $src_file to $dst_file"
     end_s=`date +%s`
     runtime=$(delta_time $start_s $end_s)
@@ -65,9 +65,9 @@ transfer_all_sites()
         local_sites+=("$local_file")
         local_str+=" -k \"$local_file\" "
         # Index
-        if $(test -e "${src_file}".idx) || $(gsutil -q stat "${src_file}".idx); then
+        if $(test -e "${src_file}".idx) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${src_file}".idx); then
             idx="${src_file}".idx
-        elif $(test -e "${src_file}".tbi) || $(gsutil -q stat "${src_file}".tbi); then
+        elif $(test -e "${src_file}".tbi) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${src_file}".tbi); then
             idx="${src_file}".tbi
         else
             echo "Cannot find idx for $src_file"
@@ -134,7 +134,7 @@ gc_setup()
     ## Setup license information #
     cred=$license_dir/credentials.json
     project_file=$license_dir/credentials.json.project
-    python /opt/sentieon/gen_credentials.py ${EMAIL:+--email $EMAIL} $cred "$SENTIEON_KEY"
+    python3 /opt/sentieon/gen_credentials.py ${EMAIL:+--email $EMAIL} $cred "$SENTIEON_KEY"
     sleep 10
     if [[ -n $SENTIEON_KEY ]]; then
         export SENTIEON_AUTH_MECH=proxy_GOOGLE
@@ -179,9 +179,9 @@ download_bams()
     for bam in "${bams[@]}"; do
         local_bam=$download_input_dir/$(basename "$bam")
         transfer "$bam" "$local_bam"
-        if $(test -e "${bam}".bai) || $(gsutil -q stat "${bam}".bai); then
+        if $(test -e "${bam}".bai) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${bam}".bai); then
             bai="${bam}".bai
-        elif $(test -e "${bam%%.bam}".bai) || $(gsutil -q stat "${bam%%.bam}".bai); then
+        elif $(test -e "${bam%%.bam}".bai) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${bam%%.bam}".bai); then
             bai="${bam%%.bam}".bai
         else
             echo "Cannot find the index file for $bam"
@@ -216,20 +216,20 @@ download_reference()
     ref=$ref_dir/$(basename "$REF")
     transfer "$REF" "$ref"
     transfer "${REF}".fai "${ref}".fai
-    if $(test -e "${REF}".dict) || $(gsutil -q stat "${REF}".dict); then
+    if $(test -e "${REF}".dict) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF}".dict); then
         transfer "${REF}".dict "${ref}".dict
-    elif $(test -e "${REF%%.fa}".dict) || $(gsutil -q stat "${REF%%.fa}".dict); then
+    elif $(test -e "${REF%%.fa}".dict) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF%%.fa}".dict); then
         transfer "${REF%%.fa}".dict "${ref%%.fa}".dict
-    elif $(test -e "${REF%%.fasta}".dict) || $(gsutil -q stat "${REF%%.fasta}".dict); then
+    elif $(test -e "${REF%%.fasta}".dict) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF%%.fasta}".dict); then
         transfer "${REF%%.fasta}".dict "${ref%%.fasta}".dict
     else
         echo "Cannot find reference dictionary"
         exit 1
     fi
     if [[ -n "$FQ1" || -n "$TUMOR_FQ1" ]]; then
-        if $(test -e "${REF}".64.amb) || $(gsutil -q stat "${REF}".64.amb); then
+        if $(test -e "${REF}".64.amb) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF}".64.amb); then
             middle=".64"
-        elif $(test -e "${REF}".amb) || $(gsutil -q stat "${REF}".amb); then
+        elif $(test -e "${REF}".amb) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF}".amb); then
             middle=""
         else
             echo "Cannot file BWA index files"
@@ -240,7 +240,7 @@ download_reference()
         transfer "${REF}"${middle}.bwt "${ref}"${middle}.bwt
         transfer "${REF}"${middle}.pac "${ref}"${middle}.pac
         transfer "${REF}"${middle}.sa  "${ref}"${middle}.sa
-        if $(test -e "${REF}"${middle}.alt) || $(gsutil -q stat "${REF}"${middle}.alt); then
+        if $(test -e "${REF}"${middle}.alt) || $(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} -q stat "${REF}"${middle}.alt); then
             transfer "${REF}"${middle}.alt "${ref}"${middle}.alt
         fi
     fi
@@ -275,9 +275,9 @@ bwa_mem_align()
         readgroup=${fun_rgs[$i]}
         bwa_cmd="$release_dir/bin/bwa mem ${fun_bwa_xargs} -R \"${readgroup}\" -t $nt \"$ref\" "
         if [[ -n "$STREAM_INPUT" ]]; then
-            bwa_cmd="$bwa_cmd <(gsutil cp $fq1 -) "
+            bwa_cmd="$bwa_cmd <(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $fq1 -) "
             if [[ -n "$fq2" ]]; then
-                bwa_cmd="$bwa_cmd <(gsutil cp $fq2 -) "
+                bwa_cmd="$bwa_cmd <(gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $fq2 -) "
             fi
         else
             local_fq1=$input_dir/$(basename "$fq1")
