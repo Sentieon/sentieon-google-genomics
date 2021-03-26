@@ -34,7 +34,7 @@
   "CPU_PLATFORM": "Intel Broadwell",
   "PROJECT_ID": null,
   "REQUESTER_PROJECT": null,
-  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.3",
+  "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.4",
   "CALLING_ARGS": null,
   "CALLING_ALGO": "Haplotyper",
   "DNASCOPE_MODEL": "https://s3.amazonaws.com/sentieon-release/other/SentieonDNAscopeModelBeta0.4a-201808.05.model",

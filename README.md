@@ -106,38 +106,42 @@ The runner script accepts a JSON file as input. In the repository you downloaded
   "FQ1": "gs://sentieon-test/pipeline_test/inputs/test1_1.fastq.gz",
   "FQ2": "gs://sentieon-test/pipeline_test/inputs/test1_2.fastq.gz",
   "REF": "gs://sentieon-test/pipeline_test/reference/hs37d5.fa",
-  "OUTPUT_BUCKET": "gs://BUCKET",
+  "OUTPUT_BUCKET": "YOUR_BUCKET_HERE",
   "ZONES": "us-central1-a,us-central1-b,us-central1-c,us-central1-f",
-  "PROJECT_ID": "PROJECT_ID",
-  "EMAIL": "EMAIL"
+  "PROJECT_ID": "YOUR_PROJECT_HERE",
+  "REQUESTER_PROJECT": "YOUR_PROJECT_HERE",
+  "EMAIL": "YOUR_EMAIL_HERE"
 }
 ```
 
 The following table describes the JSON keys in the file:
 
-| JSON key      | Description                                                                   |
-| ------------- | ----------------------------------------------------------------------------- |
-| FQ1           | The first pair of reads in the input fastq file.                              |
-| FQ2           | The second pair of reads in the input fastq file.                             |
-| BAM           | The input BAM file, if applicable.                                            |
-| REF           | The reference genome. If set, the reference index files are assumed to exist. |
-| OUTPUT_BUCKET | The bucket and directory used to store the data output from the pipeline.     |
-| ZONES         | A comma-separated list of GCP zones to use for the worker node.               |
-| PROJECT_ID    | Your GCP project ID.                                                          |
-| EMAIL         | Your email                                                                    |
+| JSON key          | Description                                                                   |
+| ----------------- | ----------------------------------------------------------------------------- |
+| FQ1               | The first pair of reads in the input fastq file.                              |
+| FQ2               | The second pair of reads in the input fastq file.                             |
+| BAM               | The input BAM file, if applicable.                                            |
+| REF               | The reference genome. If set, the reference index files are assumed to exist. |
+| OUTPUT_BUCKET     | The bucket and directory used to store the data output from the pipeline.     |
+| ZONES             | A comma-separated list of GCP zones to use for the worker node.               |
+| PROJECT_ID        | Your GCP project ID.                                                          |
+| REQUESTER_PROJECT | A project to bill when transferring data from Requester Pays buckets.         |
+| EMAIL             | Your email                                                                    |
 
-The `FQ1`, `FQ2`, `REF`, and `ZONES` fields will work with the defaults. However, the `OUTPUT_BUCKET`, `PROJECT_ID`, and `EMAIL` fields will need to be updated to point to your specific output bucket/path, Project ID, and email address.
+The `FQ1`, `FQ2`, `REF`, and `ZONES` fields will work with the defaults. However, the `OUTPUT_BUCKET`, `PROJECT_ID`, `REQUESTER_PROJECT`, and `EMAIL` fields will need to be updated to point to your specific output bucket/path, Project ID, and email address.
 
 <a name="run"/>
 
 ### Run the example pipelines
 
-Edit the `OUTPUT_BUCKET`, `PROJECT_ID`, and `EMAIL` fields in the `examples/example.json` to your output bucket/path, the GCP Project ID that you setup earlier, and email you want associated with your Sentieon license. By supplying the `EMAIL` field, your PROJECT_ID will automatically receive a 14 day free trial for the Sentieon software on the Google Cloud.
+Edit the `OUTPUT_BUCKET`, `PROJECT_ID`, `REQUESTER_PROJECT`, and `EMAIL` fields in the `examples/example.json` to your output bucket/path, the GCP Project ID that you setup earlier, and email you want associated with your Sentieon license. By supplying the `EMAIL` field, your PROJECT_ID will automatically receive a 14 day free trial for the Sentieon software on the Google Cloud.
 
 You after modifying the `examples/example.json` file, you can use the following command to run the DNAseq pipeline on a small test dataset.
 ```bash
-python runner/sentieon_runner.py examples/example.json
+python runner/sentieon_runner.py --requester_project $PROJECT_ID  examples/example.json
 ```
+The `--requester_project` argument will configure the software to use the specified PROJECT_ID when polling input files locally. Alternatively, you might set `--no_check_inputs_exist` to skip input file polling.
+
 
 <a name="understand"/>
 
@@ -278,6 +282,7 @@ The `CALLING_ALGO` key key can be change to `TNsnv`, `TNhaplotyper`, `TNhaplotyp
 | EMAIL               | An email address to use to obtain an evaluation license for your GCP Project                        |
 | SENTIEON_KEY        | Your Sentieon license key (only applicable for paying customers)                                    |
 | PROJECT_ID          | Your GCP Project ID to use when running jobs                                                        |
+| REQUESTER_PROJECT   | A project to bill when transferring data from Requester Pays buckets                                |
 | PREEMPTIBLE_TRIES   | Number of attempts to run the pipeline using preemptible instances                                  |
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
 
@@ -343,6 +348,7 @@ The `CALLING_ALGO` key key can be change to `TNsnv`, `TNhaplotyper`, `TNhaplotyp
 | EMAIL               | An email address to use to obtain an evaluation license for your GCP Project                        |
 | SENTIEON_KEY        | Your Sentieon license key (only applicable for paying customers)                                    |
 | PROJECT_ID          | Your GCP Project ID to use when running jobs                                                        |
+| REQUESTER_PROJECT   | A project to bill when transferring data from Requester Pays buckets                                |
 | PREEMPTIBLE_TRIES   | Number of attempts to run the pipeline using preemptible instances                                  |
 | NONPREEMPTIBLE_TRY  | After `PREEMPTIBLE_TRIES` are exhausted, whether to try one additional run with standard instances  |
 

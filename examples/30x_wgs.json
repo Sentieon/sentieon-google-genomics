@@ -9,5 +9,6 @@
   "STREAM_INPUT": "True",
   "ZONES": "us-central1-a,us-central1-b,us-central1-c,us-central1-f",
   "PROJECT_ID": "YOUR_PROJECT_HERE",
+  "REQUESTER_PROJECT": "YOUR_PROJECT_HERE",
   "EMAIL": "YOUR_EMAIL_HERE"
 }
