@@ -24,7 +24,7 @@ inputParameters:
   defaultValue: None
 - name: SENTIEON_VERSION
   description: Version of the Sentieon software to use
-  defaultValue: 201808.07
+  defaultValue: 201911
 - name: READGROUP
   description: Readgroup information to add during alignment
   defaultValue: "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA"
@@ -76,3 +76,6 @@ inputParameters:
 - name: CALLING_ALGO
   description: The variant calling algorithm to use
   defaultValue: Haplotyper
+- name: REQUESTER_PROJECT
+  description: The requester project to use for for gsutil requests on the remote server
+  defaultValue: None

@@ -13,7 +13,7 @@ environmental_variables=(FQ1 FQ2 TUMOR_FQ1 TUMOR_FQ2 BAM TUMOR_BAM \
     OUTPUT_BUCKET REF READGROUP TUMOR_READGROUP DEDUP BQSR_SITES DBSNP \
     INTERVAL INTERVAL_FILE NO_METRICS NO_BAM_OUTPUT NO_VCF RUN_TNSNV \
     STREAM_INPUT PIPELINE REALIGN_SITES OUTPUT_CRAM_FORMAT SENTIEON_KEY \
-    EMAIL SENTIEON_VERSION CALLING_ARGS CALLING_ALGO)
+    EMAIL SENTIEON_VERSION CALLING_ARGS CALLING_ALGO REQUESTER_PROJECT)
 unset_none_variables ${environmental_variables[@]}
 OUTPUT_CRAM_FORMAT="" # Not yet supported
 
@@ -125,9 +125,9 @@ done
 # Detect the tumor and normal sample names
 normal_sample=""
 if [[ -f ${local_bams[0]} ]]; then
-    normal_sample=$(samtools view -H ${local_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\(.*\)	.*$/\1/')
+    normal_sample=$(samtools view -H ${local_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\([^	]*\).*$/\1/')
 fi
-tumor_sample=$(samtools view -H ${tumor_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\(.*\)	.*$/\1/')
+tumor_sample=$(samtools view -H ${tumor_bams[0]} | grep "^@RG" | head -n 1 | sed 's/^.*SM:\([^	]*\).*$/\1/')
 
 # ******************************************
 # 2. Metrics command

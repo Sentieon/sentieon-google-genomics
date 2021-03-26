@@ -29,160 +29,228 @@ germline_yaml = script_dir + "/germline.yaml"
 somatic_yaml = script_dir + "/somatic.yaml"
 ccdg_yaml = script_dir + "/ccdg.yaml"
 default_json = script_dir + "/runner_default.json"
-target_url_base = ("https://www.googleapis.com/compute/v1/projects/{project}/"
-                   "zones/{zone}/instances/{instance}")
+target_url_base = (
+    "https://www.googleapis.com/compute/v1/projects/{project}/"
+    "zones/{zone}/instances/{instance}"
+)
 
 
-def cloud_storage_exists(client, gs_path):
+def cloud_storage_exists(client, gs_path, user_project=None):
     try:
-        bucket, blob = gs_path[5:].split('/', 1)
-        bucket = client.bucket(bucket)
+        bucket, blob = gs_path[5:].split("/", 1)
+        bucket = client.bucket(bucket, user_project=user_project)
         blob = bucket.blob(blob)
         res = blob.exists()
-    except:  # Catch all exceptions
-        raise ValueError("Error: Could not find {gs_path} in Google Cloud "
-                         "Storage".format(**locals()))
+    except Exception as err:  # Catch all exceptions
+        print(
+            "Error polling file in Google Cloud Storage: " + str(err),
+            file=sys.stderr,
+        )
+        raise ValueError(
+            "Error: Could not find {gs_path} in Google Cloud "
+            "Storage".format(**locals())
+        )
     return res
 
 
-def check_inputs_exist(job_vars, credentials):
+def _check_inputs_exist(
+    job_vars, credentials, project=None, user_project=None
+):
     from google.cloud import storage
+
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", "Your application has authenticated "
-                                "using end user credentials from Google Cloud "
-                                "SDK")
-        client = storage.Client(credentials=credentials)
+        warnings.filterwarnings(
+            "ignore",
+            "Your application has authenticated "
+            "using end user credentials from Google Cloud "
+            "SDK",
+        )
+        client = storage.Client(project=project, credentials=credentials)
 
     # The DBSNP, BQSR and Realign sites files
     sites_files = []
-    sites_files += (job_vars["BQSR_SITES"].split(',') if
-                    job_vars["BQSR_SITES"] else [])
-    sites_files += (job_vars["REALIGN_SITES"].split(',') if
-                    job_vars["REALIGN_SITES"] else [])
+    sites_files += (
+        job_vars["BQSR_SITES"].split(",") if job_vars["BQSR_SITES"] else []
+    )
+    sites_files += (
+        job_vars["REALIGN_SITES"].split(",")
+        if job_vars["REALIGN_SITES"]
+        else []
+    )
     sites_files += [job_vars["DBSNP"]] if job_vars["DBSNP"] else []
     for sites_file in sites_files:
-        if not cloud_storage_exists(client, sites_file):
-            logging.error("Could not find supplied file "
-                          "{}".format(sites_file))
+        if not cloud_storage_exists(
+            client, sites_file, user_project=user_project
+        ):
+            logging.error("Could not find supplied file {}".format(sites_file))
             sys.exit(-1)
         if sites_file.endswith("vcf.gz"):
-            if not cloud_storage_exists(client, sites_file + ".tbi"):
-                logging.error("Could not find index for file "
-                              "{}".format(sites_file))
+            if not cloud_storage_exists(
+                client, sites_file + ".tbi", user_project=user_project
+            ):
+                logging.error(
+                    "Could not find index for file {}".format(sites_file)
+                )
                 sys.exit(-1)
         else:
-            if not cloud_storage_exists(client, sites_file + ".idx"):
-                logging.error("Could not find index for file "
-                              "{}".format(sites_file))
+            if not cloud_storage_exists(
+                client, sites_file + ".idx", user_project=user_project
+            ):
+                logging.error(
+                    "Could not find index for file {}".format(sites_file)
+                )
                 sys.exit(-1)
 
     # The data input files
     gs_split_files = (
-            job_vars["FQ1"],
-            job_vars["TUMOR_FQ1"],
-            job_vars["FQ2"],
-            job_vars["TUMOR_FQ2"],
-            job_vars["BAM"],
-            job_vars["TUMOR_BAM"])
+        job_vars["FQ1"],
+        job_vars["TUMOR_FQ1"],
+        job_vars["FQ2"],
+        job_vars["TUMOR_FQ2"],
+        job_vars["BAM"],
+        job_vars["TUMOR_BAM"],
+    )
     gs_files = ()
     for split_file in gs_split_files:
         if not split_file:
             continue
-        for input_file in split_file.split(','):
-            if not cloud_storage_exists(client, input_file):
-                logging.error("Could not find the supplied file "
-                              "{}".format(input_file))
+        for input_file in split_file.split(","):
+            if not cloud_storage_exists(
+                client, input_file, user_project=user_project
+            ):
+                logging.error(
+                    "Could not find the supplied file {}".format(input_file)
+                )
                 sys.exit(-1)
     for input_file in gs_files:
-        if not cloud_storage_exists(client, input_file):
-            logging.error("Could not file the supplied file "
-                          "{}".format(input_file))
+        if not cloud_storage_exists(
+            client, input_file, user_project=user_project
+        ):
+            logging.error(
+                "Could not file the supplied file {}".format(input_file)
+            )
             sys.exit(-1)
 
     # All reference files
     ref = job_vars["REF"]
     ref_base = ref[:-3] if ref.endswith(".fa") else ref[:-6]
-    if not cloud_storage_exists(client, ref):
+    if not cloud_storage_exists(client, ref, user_project=user_project):
         logging.error("Reference file not found")
         sys.exit(-1)
-    if not cloud_storage_exists(client, ref + ".fai"):
+    if not cloud_storage_exists(
+        client, ref + ".fai", user_project=user_project
+    ):
         logging.error("Reference fai index not found")
         sys.exit(-1)
-    if (not cloud_storage_exists(client, ref + ".dict") and
-            not cloud_storage_exists(client, ref_base + ".dict")):
+    if not cloud_storage_exists(
+        client, ref + ".dict", user_project=user_project
+    ) and not cloud_storage_exists(
+        client, ref_base + ".dict", user_project=user_project
+    ):
         logging.error("Reference dict index not found")
         sys.exit(-1)
     # FQ specific
     if job_vars["FQ1"] or job_vars["TUMOR_FQ1"]:
         for suffix in [".amb", ".ann", ".bwt", ".pac", ".sa"]:
-            if (not cloud_storage_exists(client, ref + suffix) and
-                    not cloud_storage_exists(client, ref + ".64" + suffix)):
-                logging.error("Reference BWA index {} not "
-                              "found".format(suffix))
+            if not cloud_storage_exists(
+                client, ref + suffix, user_project=user_project
+            ) and not cloud_storage_exists(
+                client, ref + ".64" + suffix, user_project=user_project
+            ):
+                logging.error(
+                    "Reference BWA index {} not found".format(suffix)
+                )
                 sys.exit(-1)
     # BAM specific
     bam_vars = ("BAM", "TUMOR_BAM")
     for bam_type in bam_vars:
         if job_vars[bam_type]:
-            for bam in job_vars[bam_type].split(','):
-                if (not cloud_storage_exists(client, bam + ".bai") and
-                        not cloud_storage_exists(client, bam + "bai")):
+            for bam in job_vars[bam_type].split(","):
+                if not cloud_storage_exists(
+                    client, bam + ".bai", user_project=user_project
+                ) and not cloud_storage_exists(
+                    client, bam + "bai", user_project=user_project
+                ):
                     logging.error("BAM supplied but BAI not found")
                     sys.exit(-1)
 
 
-def main(vargs=None):
+def parse_args(vargs=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("pipeline_config", help="The json configuration file")
     parser.add_argument(
-            "--verbose",
-            "-v",
-            action="count",
-            help="Increase the runner verbosity")
+        "pipeline_config", nargs="?", help="The json configuration file"
+    )
     parser.add_argument(
-            "--no_check_inputs_exist",
-            action="store_true",
-            help="Do not check that the input files exist before running the "
-                 "pipeline")
+        "--verbose", "-v", action="count", help="Increase the runner verbosity"
+    )
     parser.add_argument(
-            "--polling_interval",
-            type=float,
-            default=30,
-            help="Seconds between polling the running operation")
-    args = parser.parse_args()
-    polling_interval = args.polling_interval
+        "--no_check_inputs_exist",
+        action="store_true",
+        help="Do not check that the input files exist before running the "
+        "pipeline",
+    )
+    parser.add_argument(
+        "--polling_interval",
+        type=float,
+        default=30,
+        help="Seconds between polling the running operation",
+    )
+    parser.add_argument(
+        "--requester_project",
+        default=None,
+        help="A project to charge for local 'requester pays' requests",
+    )
+    return parser.parse_args(vargs)
 
-    logging.getLogger("googleapiclient."
-                      "discovery_cache").setLevel(logging.ERROR)
+
+def setup_logging(verbosity=0):
+    logging.getLogger("googleapiclient." "discovery_cache").setLevel(
+        logging.ERROR
+    )
     log_format = "%(filename)s::%(funcName)s [%(levelname)s] %(message)s"
-    if not hasattr(args, "verbose") or args.verbose is None:
+    if verbosity is None or verbosity < 1:
         log_level = logging.WARNING
-    elif args.verbose == 1:
+    elif verbosity == 1:
         log_level = logging.INFO
-    elif args.verbose >= 2:
-        log_level = logging.DEBUG
     else:
-        log_level = logging.WARNING
+        log_level = logging.DEBUG
     logging.basicConfig(level=log_level, format=log_format)
 
+
+def main(
+    pipeline_config,
+    polling_interval=30,
+    check_inputs_exist=True,
+    requester_project=None,
+):
     # Grab input arguments from the json file
-    job_vars = json.load(open(default_json))
-    job_vars.update(json.load(open(args.pipeline_config)))
+    try:
+        job_vars = json.load(open(default_json))
+    except ValueError as e:
+        logging.error("Error reading the default json file: " + default_json)
+        raise e
+    job_vars.update(pipeline_config)
+
     preemptible_tries = int(job_vars["PREEMPTIBLE_TRIES"])
     if job_vars["NONPREEMPTIBLE_TRY"]:
         non_preemptible_tries = 1
     preemptible = True if preemptible_tries > 0 else False
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", "Your application has authenticated "
-                                "using end user credentials from Google Cloud "
-                                "SDK")
+        warnings.filterwarnings(
+            "ignore",
+            "Your application has authenticated "
+            "using end user credentials from Google Cloud "
+            "SDK",
+        )
         credentials, project_id = google.auth.default()
 
     # Warn with depreciated JSON keys
     if "MIN_RAM_GB" in job_vars or "MIN_CPU" in job_vars:
-        logging.warning("'MIN_RAM_GB' and 'MIN_CPU' are now ignored. "
-                        "Please use 'MACHINE_TYPE' to specify the instance "
-                        "type")
+        logging.warning(
+            "'MIN_RAM_GB' and 'MIN_CPU' are now ignored. "
+            "Please use 'MACHINE_TYPE' to specify the instance "
+            "type"
+        )
 
     # Grab the yaml for the workflow
     pipeline = job_vars["PIPELINE"]
@@ -193,23 +261,26 @@ def main(vargs=None):
     elif pipeline == "CCDG":
         pipeline_yaml = ccdg_yaml
     else:
-        logging.error("Pipeline '" + pipeline + "'. Valid "
-                      "values are 'GERMLINE' and 'SOMATIC'")
+        logging.error(
+            "Pipeline '" + pipeline + "'. Valid "
+            "values are 'GERMLINE' and 'SOMATIC'"
+        )
         sys.exit(-1)
     try:
         pipeline_dict = yaml.safe_load(open(pipeline_yaml))
     except IOError:
-        logging.error("No yaml \"{}\" found.".format(pipeline_yaml))
+        logging.error('No yaml "{}" found.'.format(pipeline_yaml))
         sys.exit(-1)
 
     # Try not to create nearly empty directories
-    while job_vars["OUTPUT_BUCKET"].endswith('/'):
+    while job_vars["OUTPUT_BUCKET"].endswith("/"):
         job_vars["OUTPUT_BUCKET"] = job_vars["OUTPUT_BUCKET"][:-1]
 
     # Some basic error checking to fail early
     if not job_vars["PROJECT_ID"]:
         logging.error("Please supply a PROJECT_ID")
         sys.exit(-1)
+    project = job_vars["PROJECT_ID"]
 
     # Shared errors
     if job_vars["FQ1"] and job_vars["BAM"]:
@@ -218,11 +289,14 @@ def main(vargs=None):
     if job_vars["INTERVAL"] and job_vars["INTERVAL_FILE"]:
         logging.error("Please supply either 'INTERVAL' or 'INTERVAL_FILE'")
         sys.exit(-1)
-    if ((job_vars["FQ1"] and job_vars["READGROUP"]) and
-            (len(job_vars["FQ1"].split(',')) !=
-             len(job_vars["READGROUP"].split(',')))):
-        logging.error("The number of fastq files must match the number of "
-                      "supplied readgroups")
+    if (job_vars["FQ1"] and job_vars["READGROUP"]) and (
+        len(job_vars["FQ1"].split(","))
+        != len(job_vars["READGROUP"].split(","))
+    ):
+        logging.error(
+            "The number of fastq files must match the number of "
+            "supplied readgroups"
+        )
         sys.exit(-1)
 
     # Pipeline specific errors
@@ -230,82 +304,102 @@ def main(vargs=None):
         if not job_vars["FQ1"] and not job_vars["BAM"]:
             logging.error("Please supply either 'FQ1' or 'BAM'")
             sys.exit(-1)
-        if (job_vars["NO_HAPLOTYPER"] and
-                job_vars["NO_METRICS"] and
-                job_vars["NO_BAM_OUTPUT"]):
+        if (
+            job_vars["NO_HAPLOTYPER"]
+            and job_vars["NO_METRICS"]
+            and job_vars["NO_BAM_OUTPUT"]
+        ):
             logging.error("No output files requested")
             sys.exit(-1)
         if job_vars["RECALIBRATED_OUTPUT"] and job_vars["BQSR_SITES"] is None:
-            logging.error("Cannot output a recalibrated BAM file without "
-                          "running BQSR. Please supply 'BQSR_SITES'")
+            logging.error(
+                "Cannot output a recalibrated BAM file without "
+                "running BQSR. Please supply 'BQSR_SITES'"
+            )
             sys.exit(-1)
         valid_algos = ("Haplotyper", "DNAscope")
         if job_vars["CALLING_ALGO"] not in valid_algos:
-            logging.error(job_vars["CALLING_ALGO"] + "' is not a "
-                          "valid germline variant calling algo. Please set "
-                          "'CALLING_ALGO' to one of " + str(valid_algos))
+            logging.error(
+                job_vars["CALLING_ALGO"] + "' is not a "
+                "valid germline variant calling algo. Please set "
+                "'CALLING_ALGO' to one of " + str(valid_algos)
+            )
             sys.exit(-1)
         # Additional CCDG checks
         if pipeline == "CCDG":
             if job_vars["BQSR_SITES"] is None:
-                logging.error("The CCDG pipeline requires known sites for "
-                              "BQSR. Please supply 'BQSR_SITES'")
+                logging.error(
+                    "The CCDG pipeline requires known sites for "
+                    "BQSR. Please supply 'BQSR_SITES'"
+                )
                 sys.exit(-1)
     elif pipeline == "SOMATIC":
         if job_vars["TUMOR_FQ1"] and job_vars["TUMOR_BAM"]:
-            logging.error("Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' "
-                          "(not both)")
+            logging.error(
+                "Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM' " "(not both)"
+            )
             sys.exit(-1)
-        if (not job_vars["TUMOR_FQ1"] and
-                not job_vars["TUMOR_BAM"]):
+        if not job_vars["TUMOR_FQ1"] and not job_vars["TUMOR_BAM"]:
             logging.error("Please supply either 'TUMOR_FQ1' or 'TUMOR_BAM'")
             sys.exit(-1)
-        if (job_vars["RUN_TNSNV"] and
-                not job_vars["REALIGN_SITES"]):
-            logging.error("TNsnv requires indel realignment. Please supply "
-                          "'REALIGN_SITES'")
+        if job_vars["RUN_TNSNV"] and not job_vars["REALIGN_SITES"]:
+            logging.error(
+                "TNsnv requires indel realignment. Please supply "
+                "'REALIGN_SITES'"
+            )
             sys.exit(-1)
-        if (job_vars["NO_BAM_OUTPUT"] and
-                job_vars["NO_VCF"] and job_vars["NO_METRICS"]):
+        if (
+            job_vars["NO_BAM_OUTPUT"]
+            and job_vars["NO_VCF"]
+            and job_vars["NO_METRICS"]
+        ):
             logging.error("No output files requested")
             sys.exit(-1)
-        if ((job_vars["TUMOR_FQ1"] and job_vars["TUMOR_READGROUP"]) and
-                (len(job_vars["TUMOR_FQ1"].split(',')) !=
-                    len(job_vars["TUMOR_READGROUP"].split(',')))):
-            logging.error("The number of tumor fastq files must match the "
-                          "number of supplied readgroups")
+        if (job_vars["TUMOR_FQ1"] and job_vars["TUMOR_READGROUP"]) and (
+            len(job_vars["TUMOR_FQ1"].split(","))
+            != len(job_vars["TUMOR_READGROUP"].split(","))
+        ):
+            logging.error(
+                "The number of tumor fastq files must match the "
+                "number of supplied readgroups"
+            )
             sys.exit(-1)
         valid_algos = ("TNhaplotyper", "TNhaplotyper2", "TNscope", "TNsnv")
         if job_vars["CALLING_ALGO"] not in valid_algos:
-            logging.error(job_vars["CALLING_ALGO"] + "' is not a "
-                          "valid somatic variant calling algo. Please set "
-                          "'CALLING_ALGO' to one of " + str(valid_algos))
+            logging.error(
+                job_vars["CALLING_ALGO"] + "' is not a "
+                "valid somatic variant calling algo. Please set "
+                "'CALLING_ALGO' to one of " + str(valid_algos)
+            )
             sys.exit(-1)
-    if not args.no_check_inputs_exist:
-        check_inputs_exist(job_vars, credentials)
+    if check_inputs_exist:
+        _check_inputs_exist(
+            job_vars,
+            credentials,
+            project=project,
+            user_project=requester_project,
+        )
 
     # Resources dict
-    zones = job_vars["ZONES"].split(',') if job_vars["ZONES"] else []
+    zones = job_vars["ZONES"].split(",") if job_vars["ZONES"] else []
     if not zones:
         logging.error("Please supply at least one zone to run the pipeline")
     region = zones[0][:-2]
     disk = {
         "name": "local-disk",
         "type": "local-ssd",
-        "sizeGb": int(job_vars["DISK_SIZE"])
+        "sizeGb": int(job_vars["DISK_SIZE"]),
     }
     vm_dict = {
         "machineType": job_vars["MACHINE_TYPE"],
         "preemptible": preemptible,
         "disks": [disk],
-        "serviceAccount": {"scopes": [
-            "https://www.googleapis.com/auth/cloud-platform"]},
-        "cpuPlatform": job_vars["CPU_PLATFORM"]
+        "serviceAccount": {
+            "scopes": ["https://www.googleapis.com/auth/cloud-platform"]
+        },
+        "cpuPlatform": job_vars["CPU_PLATFORM"],
     }
-    resources_dict = {
-        "zones": zones,
-        "virtualMachine": vm_dict
-    }
+    resources_dict = {"zones": zones, "virtualMachine": vm_dict}
 
     # Environment
     env_dict = {}
@@ -329,11 +423,9 @@ def main(vargs=None):
         "containerName": "run-pipeline",
         "imageUri": job_vars["DOCKER_IMAGE"],
         "commands": ["/bin/bash", _cmd],
-        "mounts": [{
-            "disk": "local-disk",
-            "path": "/mnt/work",
-            "readOnly": False
-        }],
+        "mounts": [
+            {"disk": "local-disk", "path": "/mnt/work", "readOnly": False}
+        ],
     }
 
     cleanup_action = {
@@ -342,22 +434,41 @@ def main(vargs=None):
         "commands": [
             "/bin/bash",
             "-c",
-            ("gsutil cp /google/logs/action/1/stderr "
-             "\"{}/worker_logs/stderr.txt\" && "
-             "gsutil cp /google/logs/action/1/stdout "
-             "\"{}/worker_logs/stdout.txt\"").format(
-                 job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"])],
-        "alwaysRun": True
+            (
+                "gsutil cp /google/logs/action/1/stderr "
+                '"{}/worker_logs/stderr.txt" && '
+                "gsutil cp /google/logs/action/1/stdout "
+                '"{}/worker_logs/stdout.txt"'
+            ).format(job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"]),
+        ],
+        "alwaysRun": True,
     }
 
-    # Run the pipeline #
-    project = job_vars["PROJECT_ID"]
-    service_parent = "projects/" + project + "/locations/" + region
-    service = build('lifesciences', 'v2beta', credentials=credentials)
+    # Build the API services
+    service = build("lifesciences", "v2beta", credentials=credentials)
     compute_service = build("compute", "v1", credentials=credentials)
+
+    # Check the PIPELINE_REGION
+    name = "projects/" + project
+    locations = service.projects().locations().list(name=name).execute()
+    service_parent = []
+    for _loc in locations.get("locations", []):
+        if _loc["locationId"] == job_vars["PIPELINE_REGION"]:
+            service_parent.append(_loc["name"])
+    if len(service_parent) != 1:
+        possible_regions = ", ".join(
+            [x["locationId"] for x in locations["locations"]]
+        )
+        logging.error(
+            "Unknown PIPELINE_REGION '{}'. Please choose from: "
+            "{}".format(job_vars["PIPELINE_REGION"], possible_regions)
+        )
+        sys.exit(-1)
+    service_parent = service_parent[0]
+
+    # Run the pipeline
     operation = None
     counter = 0
-
     while non_preemptible_tries > 0 or preemptible_tries > 0:
         if operation:
             while not operation.get("done", False):
@@ -366,7 +477,7 @@ def main(vargs=None):
                     time.sleep(polling_interval)
                     try:
                         ops = service.projects().locations().operations()
-                        new_op = ops.get(name=operation['name']).execute()
+                        new_op = ops.get(name=operation["name"]).execute()
                         break
                     except googleapiclient.errors.HttpError as e:
                         logging.warning(str(e))
@@ -375,15 +486,19 @@ def main(vargs=None):
                         logging.warning(str(e))
                         tries += 1
                 if not new_op:
-                    logging.error("Network error while polling running "
-                                  "operation.")
+                    logging.error(
+                        "Network error while polling running operation."
+                    )
                     sys.exit(1)
                 operation = new_op
             logging.debug(pformat(operation, indent=2))
             if "error" in operation:
-                assigned_events = list(filter(
+                assigned_events = list(
+                    filter(
                         lambda x: "workerAssigned" in x.keys(),
-                        operation["metadata"]["events"]))
+                        operation["metadata"]["events"],
+                    )
+                )
                 if not assigned_events:
                     logging.error("Genomics operation failed before running:")
                     logging.error(pformat(operation["error"], indent=2))
@@ -395,20 +510,31 @@ def main(vargs=None):
                 url = target_url_base.format(**locals())
                 time.sleep(300)  # It may take some time to set the operation
                 compute_ops = (
-                        compute_service.zoneOperations().list(
-                            project=project, zone=zone, filter=(
-                                "(targetLink eq {url}) (operationType eq "
-                                "compute.instances.preempted)"
-                            ).format(**locals())).execute())
-                if ("items" in compute_ops and
-                        any([(x["operationType"] ==
-                              "compute.instances.preempted")
-                            for x in compute_ops["items"]])):
-                    logging.warning("Run {} failed. "
-                                    "Retrying...".format(counter))
+                    compute_service.zoneOperations()
+                    .list(
+                        project=project,
+                        zone=zone,
+                        filter=(
+                            "(targetLink eq {url}) (operationType eq "
+                            "compute.instances.preempted)"
+                        ).format(**locals()),
+                    )
+                    .execute()
+                )
+                if "items" in compute_ops and any(
+                    [
+                        (x["operationType"] == "compute.instances.preempted")
+                        for x in compute_ops["items"]
+                    ]
+                ):
+                    logging.warning(
+                        "Run {} failed. " "Retrying...".format(counter)
+                    )
                 else:
-                    logging.error("Run {} failed, but not due to preemption. "
-                                  "Exit".format(counter))
+                    logging.error(
+                        "Run {} failed, but not due to preemption. "
+                        "Exit".format(counter)
+                    )
                     operation = None
                     break
             else:
@@ -426,7 +552,7 @@ def main(vargs=None):
             "pipeline": {
                 "actions": [run_action, cleanup_action],
                 "resources": resources_dict,
-                "environment": env_dict
+                "environment": env_dict,
             }
         }
 
@@ -437,9 +563,7 @@ def main(vargs=None):
             time.sleep(backoff_interval * random.random() * (2 ** backoff - 1))
             try:
                 op_pipelines = service.projects().locations().pipelines()
-                request = op_pipelines.run(
-                        parent=service_parent,
-                        body=body)
+                request = op_pipelines.run(parent=service_parent, body=body)
                 operation = request.execute()
                 break
             except googleapiclient.errors.HttpError as e:
@@ -459,8 +583,13 @@ def main(vargs=None):
             while tries <= 5:
                 time.sleep(polling_interval)
                 try:
-                    new_op = service.projects().locations().operations().get(
-                        name=operation["name"]).execute()
+                    new_op = (
+                        service.projects()
+                        .locations()
+                        .operations()
+                        .get(name=operation["name"])
+                        .execute()
+                    )
                     break
                 except googleapiclient.errors.HttpError as e:
                     logging.warning(str(e))
@@ -469,15 +598,20 @@ def main(vargs=None):
                     logging.warning(str(e))
                     tries += 1
             if not new_op:
-                logging.error("Network error while waiting for the final "
-                              "operation to finish")
+                logging.error(
+                    "Network error while waiting for the final "
+                    "operation to finish"
+                )
                 sys.exit(1)
             operation = new_op
         logging.debug(pformat(operation, indent=2))
         if "error" in operation:
-            assigned_events = list(filter(
+            assigned_events = list(
+                filter(
                     lambda x: "workerAssigned" in x.keys(),
-                    operation["metadata"]["events"]))
+                    operation["metadata"]["events"],
+                )
+            )
             if not assigned_events:
                 logging.error("Genomics operation failed before running:")
                 logging.error(pformat(operation["error"], indent=2))
@@ -487,16 +621,39 @@ def main(vargs=None):
             instance = startup_event["workerAssigned"]["instance"]
             zone = startup_event["workerAssigned"]["zone"]
             url = target_url_base.format(**locals())
-            compute_ops = compute_service.zoneOperations().list(
+            compute_ops = (
+                compute_service.zoneOperations()
+                .list(
                     project=project,
                     zone=zone,
-                    filter=("(targetLink eq {url}) (operationType eq "
-                            "compute.instances.preempted)").format(
-                        **locals())).execute()
+                    filter=(
+                        "(targetLink eq {url}) (operationType eq "
+                        "compute.instances.preempted)"
+                    ).format(**locals()),
+                )
+                .execute()
+            )
             logging.error("Final run failed.")
         else:
             logging.warning("Operation succeeded")
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    setup_logging(args.verbose)
+
+    if not args.pipeline_config:
+        logging.error("Please supply an input pipeline_config JSON")
+        sys.exit(-1)
+    try:
+        pipeline_config = json.load(open(args.pipeline_config))
+    except ValueError as e:
+        logging.error("Error reading the json file: " + args.pipeline_config)
+        raise e
+
+    main(
+        pipeline_config,
+        polling_interval=args.polling_interval,
+        check_inputs_exist=not args.no_check_inputs_exist,
+        requester_project=args.requester_project,
+    )

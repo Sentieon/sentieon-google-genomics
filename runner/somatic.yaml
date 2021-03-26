@@ -24,7 +24,7 @@ inputParameters:
   defaultValue: None
 - name: SENTIEON_VERSION
   description: Version of the Sentieon software to use
-  defaultValue: 201808.07
+  defaultValue: 201911
 - name: FQ1
   defaultValue: None
   description: Fastq for a single sample (comma-separated)
@@ -85,3 +85,6 @@ inputParameters:
 - name: CALLING_ALGO
   description: The variant calling algorithm to use
   defaultValue: TNhaplotyper
+- name: REQUESTER_PROJECT
+  description: The requester project to use for for gsutil requests on the remote server
+  defaultValue: None
