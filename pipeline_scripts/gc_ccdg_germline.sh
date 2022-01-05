@@ -43,8 +43,8 @@ fi
 # 0. Setup
 # **********************************
 gc_setup
-export LD_PRELOAD=${release_dir}/lib/libjemalloc.so
-export MALLOC_CONF=lg_dirty_mult:-1
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+export MALLOC_CONF="metadata_thp:auto,background_thread:true,dirty_decay_ms:30000,muzzy_decay_ms:30000"
 
 ## Download input files
 if [[ -n "$BAM" ]]; then
