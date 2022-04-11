@@ -5,7 +5,7 @@
   "OUTPUT_BUCKET": null,
   "REF": null,
   "EMAIL": null,
-  "SENTIEON_VERSION": "202112.01",
+  "SENTIEON_VERSION": "202112.02",
   "READGROUP": "@RG\\tID:read-group\\tSM:sample-name\\tPL:ILLUMINA",
   "DEDUP": "rmdup",
   "BQSR_SITES": null,
@@ -37,7 +37,7 @@
   "DOCKER_IMAGE": "sentieon/sentieon-google-cloud:0.2.4",
   "CALLING_ARGS": null,
   "CALLING_ALGO": "Haplotyper",
-  "DNASCOPE_MODEL": "https://s3.amazonaws.com/sentieon-release/other/SentieonDNAscopeModelBeta0.4a-201808.05.model",
+  "DNASCOPE_MODEL": "https://s3.amazonaws.com/sentieon-release/other/SentieonDNAscopeModel1.0.model",
   "PREEMPTIBLE_TRIES": 0,
   "NONPREEMPTIBLE_TRY": true
 }
