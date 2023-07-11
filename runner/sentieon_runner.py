@@ -435,11 +435,16 @@ def main(
             "/bin/bash",
             "-c",
             (
-                "gsutil cp /google/logs/action/1/stderr "
+                "gsutil -u {} cp /google/logs/action/1/stderr "
                 '"{}/worker_logs/stderr.txt" && '
-                "gsutil cp /google/logs/action/1/stdout "
+                "gsutil -u {} cp /google/logs/action/1/stdout "
                 '"{}/worker_logs/stdout.txt"'
-            ).format(job_vars["OUTPUT_BUCKET"], job_vars["OUTPUT_BUCKET"]),
+            ).format(
+                job_vars["REQUESTER_PROJECT"],
+                job_vars["OUTPUT_BUCKET"],
+                job_vars["REQUESTER_PROJECT"],
+                job_vars["OUTPUT_BUCKET"]
+            ),
         ],
         "alwaysRun": True,
     }
