@@ -159,7 +159,7 @@ if [[ "$DEDUP" != "nodup" ]]; then
         if [[ -n "$dedup_bam_str" ]]; then
             to_upload+=" $metrics_dir/normal_dedup_metrics.txt"
         fi
-        (gsutil cp $to_upload "$out_metrics" &&
+        (gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $to_upload "$out_metrics" &&
             rm $metrics_dir/*_dedup_metrics.txt) &
         upload_dedup_pid=$!
     else
@@ -188,7 +188,7 @@ if [[ -z "$NO_BAM_OUTPUT" && -z "$REALIGN_SITES" ]]; then
             upload_list+=" \"${bam}.crai\" "
         fi
     done
-    eval gsutil cp $upload_list "$out_bam" &
+    eval gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $upload_list "$out_bam" &
     upload_deduped_pid=$!
 fi
 
@@ -254,7 +254,7 @@ if [[ -n "$realigned_bam_str" ]]; then
 fi
 
 if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" ]]; then
-    gsutil cp $bqsr_table $tumor_bqsr_table "$out_bam" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $bqsr_table $tumor_bqsr_table "$out_bam" &
     upload_bqsr_pid=$!
 fi
 
@@ -296,7 +296,7 @@ if [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" && -n "$realigned_bam_str" ]]; then
     elif [[ -f "${corealigned_bam}.crai" ]]; then
         upload_list+=" ${corealigned_bam}.crai "
     fi
-    gsutil cp $upload_list "$out_bam" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $upload_list "$out_bam" &
     upload_corealigned_pid=$!
 
     corealigned_bam_str=" -i $corealigned_bam "
@@ -310,7 +310,7 @@ elif [[ -n "$REALIGN_SITES" && -n "$RUN_TNSNV" ]]; then
             upload_list+=" \"${bam}.crai\" "
         fi
     done
-    eval gsutil cp $upload_list "$out_bam" &
+    eval gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $upload_list "$out_bam" &
     upload_corealigned_pid=$!
 
     corealigned_bam_str=" $tumor_realigned_bam_str "
@@ -350,7 +350,7 @@ if [[ -z "$NO_VCF" ]]; then
     fi
 
     run "$cmd" "Variant calling"
-    gsutil cp $vcf ${vcf}.tbi "$out_variants" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $vcf ${vcf}.tbi "$out_variants" &
     upload_vcf_pid=$!
 fi
 
@@ -382,7 +382,7 @@ if [[ -n $tumor_bqsr_cmd3 ]]; then
     fi
     run "$tumor_bqsr_cmd3" "Tumor BQSR CSV"
     run "$tumor_bqsr_cmd4" "Tumor BQSR plot"
-    gsutil cp $upload_list $tumor_bqsr_plot "$out_metrics" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $upload_list $tumor_bqsr_plot "$out_metrics" &
     upload_bqsr_metrics_pid=$!
 fi
 

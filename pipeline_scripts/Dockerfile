@@ -1,4 +1,4 @@
-FROM google/cloud-sdk:367.0.0-slim as downloader
+FROM google/cloud-sdk:437.0.1-slim as downloader
 
 # Install samtools
 RUN apt-get update && \
@@ -22,9 +22,9 @@ RUN curl -Lo samblaster-v.0.1.24.tar.gz https://github.com/GregoryFaust/samblast
   make && \
   cp samblaster /usr/local/bin/
 
-FROM google/cloud-sdk:367.0.0-slim
+FROM google/cloud-sdk:437.0.1-slim
 
-LABEL container.base.image="google/cloud-sdk:367.0.0-slim"
+LABEL container.base.image="google/cloud-sdk:437.0.1-slim"
 
 COPY --from=downloader /usr/local/bin/samtools /usr/local/bin
 COPY --from=downloader /usr/local/bin/samblaster /usr/local/bin

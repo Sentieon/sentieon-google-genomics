@@ -102,7 +102,7 @@ output_ext="bam"
 run_mark_duplicates "" "$DEDUP" metrics_cmd1 "$local_bams_str" dedup_bam_str dedup_bams "$dedup_xargs" $output_ext "false" "${local_bams[@]}"
 if [[ "$DEDUP" != "nodup" ]]; then
     if [[ -z "$NO_METRICS" ]]; then
-        (gsutil cp $metrics_dir/dedup_metrics.txt "$out_metrics" &&
+        (gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $metrics_dir/dedup_metrics.txt "$out_metrics" &&
             rm $metrics_dir/dedup_metrics.txt) &
         upload_dedup_pid=$!
     else
@@ -131,7 +131,7 @@ if [[ -z "$NO_BAM_OUTPUT" && (-z "$bqsr_sites" || -z "$RECALIBRATED_OUTPUT" ) ]]
             upload_list+=" \"${bam}.crai\" "
         fi
     done
-    eval gsutil cp $upload_list "$out_bam" &
+    eval gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $upload_list "$out_bam" &
     upload_deduped_pid=$!
 fi
 
@@ -146,12 +146,12 @@ if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -n "$RECALIBRATED_OUTPUT" ]]; t
     outrecal=$work/recalibrated.bam
     cmd="$release_dir/bin/sentieon driver $dedup_bam_str -q $bqsr_table --algo ReadWriter $outrecal"
     (run "$cmd" "ReadWriter";
-        gsutil cp $outrecal ${outrecal}.bai "$out_bam") &
+        gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $outrecal ${outrecal}.bai "$out_bam") &
     upload_recal_pid=$!
 fi
 
 if [[ -n "$bqsr_sites" && -z "$NO_BAM_OUTPUT" && -z "$RECALIBRATED_OUTPUT" ]]; then
-    gsutil cp $bqsr_table "$out_bam" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $bqsr_table "$out_bam" &
     upload_bqsr_pid=$!
 fi
 
@@ -218,7 +218,7 @@ if [[ -z $NO_HAPLOTYPER ]]; then
         run "$cmd" "DNAscope model apply"
     fi
 
-    gsutil cp $outfile ${outfile}.tbi "$out_variants" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $outfile ${outfile}.tbi "$out_variants" &
     upload_vcf_pid=$!
 fi
 
@@ -240,7 +240,7 @@ fi
 if [[ -n $bqsr_cmd3 ]]; then
     run "$bqsr_cmd3" "BQSR CSV"
     run "$bqsr_cmd4" "BQSR plot"
-    gsutil cp $plot "$out_metrics" &
+    gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $plot "$out_metrics" &
     upload_bqsr_metrics_pid=$!
 fi
 

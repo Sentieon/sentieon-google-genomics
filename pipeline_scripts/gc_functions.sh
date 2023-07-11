@@ -88,7 +88,7 @@ upload_metrics()
     eval "fun_metrics_cmd2=\$$fun_var_cmd2"
     if [[ -n "$fun_metrics_cmd2" && -z "$fun_metrics_cmd1" && -f "${fun_metrics_files[0]}" ]]; then
         (run "$fun_metrics_cmd2" "Plotting metrics results." &&
-            gsutil cp ${fun_metrics_files[@]} "$out_metrics" &&
+            gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp ${fun_metrics_files[@]} "$out_metrics" &&
             rm ${fun_metrics_files[@]}) &
         eval "$fun_pid=$! "
         eval "$fun_var_cmd2=''"
@@ -297,7 +297,7 @@ bwa_mem_align()
         fi
         bwa_cmd="$bwa_cmd | $release_dir/bin/sentieon util sort ${fun_util_sort_xargs} --block_size 512M -o $local_bam -t $nt --sam2bam -i -"
         run "$bwa_cmd" "BWA-mem and sorting"
-        gsutil cp $bwa_log "$out_bam"
+        gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $bwa_log "$out_bam"
         fun_bam_dest+=($local_bam)
     done
     echo "BWA ended"
@@ -444,7 +444,7 @@ run_bqsr_post()
         run "$cmd" "BQSR post"
         run "$fun_bqsr_cmd3" "BQSR CSV"
         run "$fun_bqsr_cmd4" "BQSR plot"
-        gsutil cp $fun_plot "$out_metrics" &
+        gsutil ${REQUESTER_PROJECT:+-u $REQUESTER_PROJECT} cp $fun_plot "$out_metrics" &
         eval "$fun_upload_pid=$1 "
     fi
 
