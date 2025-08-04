@@ -1,5 +1,8 @@
 <a href="https://www.sentieon.com/">  <img src="https://www.sentieon.com/wp-content/uploads/2017/05/cropped-companylogo.png" alt="Sentieon" width="25%">	</a>
 
+*Archive Notice*  
+The Google Life Sciences API that was used by this repository has been shut down. This repository is only available for historical reference.
+
 # Run Sentieon pipelines on the Google Cloud Platform
 *Easy to use pipelines for the Sentieon tools on the Google Cloud*
 
